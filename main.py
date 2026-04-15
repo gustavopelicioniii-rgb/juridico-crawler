@@ -351,11 +351,18 @@ async def run_migrations():
                 filepath = migrations_dir / filename
                 sql_content = filepath.read_text()
                 
-                # Executa cada statement separadamente
-                for statement in sql_content.split(';'):
-                    statement = statement.strip()
-                    if statement:
-                        await session.execute(statement)
+                # Filtra comentários e statements vazios
+                statements = []
+                for line in sql_content.split(';'):
+                    line = line.strip()
+                    # Pula linhas vazias ou que são só comentário
+                    if line and not line.startswith('--'):
+                        statements.append(line)
+                
+                # Executa cada statement
+                for statement in statements:
+                    from sqlalchemy import text
+                    await session.execute(text(statement))
                 
                 await session.commit()
                 migrations_run.append(filename)
