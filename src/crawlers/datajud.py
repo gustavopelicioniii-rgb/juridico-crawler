@@ -250,7 +250,14 @@ class DataJudCrawler(BaseCrawler):
         logger.info("Processo encontrado no DataJud: %s", numero_cnj)
 
         if usar_ai_parser:
-            return await extrair_dados_completos(fonte, tribunal=tribunal)
+            try:
+                return await extrair_dados_completos(fonte, tribunal=tribunal)
+            except Exception as e:
+                logger.warning(
+                    "AI Parser falhou (%s), usando parsing básico: %s",
+                    type(e).__name__, e,
+                )
+                # Fallback: parsing básico sem AI
 
         # Fallback: parsing básico sem AI
         return self._parse_basico(fonte, tribunal)
@@ -351,6 +358,18 @@ class DataJudCrawler(BaseCrawler):
             "Busca OAB %s/%s concluída: %d processo(s) em %d tribunal(is)",
             numero_oab, uf_oab, len(resultados), len(alvos),
         )
+
+        # AVISO: DataJud API pública NÃO tem campo OAB indexado para busca.
+        # Se retornou 0 resultados, é esperado — use os crawlers nativos (TJSP, PJe, etc.)
+        if not resultados:
+            logger.warning(
+                "[DataJud] Busca por OAB %s/%s retornou 0 resultados. "
+                "NOTA: A API pública do DataJud NÃO indexa OAB para busca pública. "
+                "Para buscar por OAB, use os crawlers nativos de cada tribunal (TJSP, PJe, eProc, etc.) "
+                "ou o OrquestradorNativo que distribui para todos os crawlers.",
+                numero_oab, uf_oab,
+            )
+
         return resultados
 
     @staticmethod
