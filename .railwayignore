@@ -1,0 +1,23 @@
+# Pastas de Ambiente e Dependências
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Dados e Bancos Locais
+*.db
+*.sqlite
+data/
+outputs/
+temp/
+tmp/
+
+# Logs e IDE
+*.log
+.vscode/
+.idea/
+.git/
+.ipynb_checkpoints/

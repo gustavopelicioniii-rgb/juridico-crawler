@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Juridico Crawler</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Space+Mono:wght@400;700&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #060810;
+      --bg-1:     #0c1018;
+      --bg-2:     #121822;
+      --bg-3:     #182030;
+      --border:   #1c2638;
+      --border-hi:#263548;
+      --cyan:     #00e5ff;
+      --cyan-dim: rgba(0,229,255,0.1);
+      --cyan-glow:0 0 22px rgba(0,229,255,0.28);
+      --text:     #c8d4e8;
+      --text-2:   #6a7f9a;
+      --text-3:   #2e3f52;
+      --ok:       #00e676;
+      --warn:     #ffab40;
+      --err:      #ff5252;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Barlow', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* dot-grid background */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: radial-gradient(circle, #1e2a3a 1px, transparent 1px);
+      background-size: 30px 30px;
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    #app { position: relative; z-index: 1; }
+
+    /* ── HEADER ─────────────────────────────────── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 2rem; height: 60px;
+      background: rgba(6,8,16,0.92);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(14px);
+      position: sticky; top: 0; z-index: 100;
+    }
+
+    .logo { display: flex; align-items: baseline; gap: .65rem; }
+
+    .logo-main {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.65rem; letter-spacing: .1em; color: #fff;
+    }
+
+    .logo-sub {
+      font-family: 'Space Mono', monospace;
+      font-size: .6rem; letter-spacing: .18em;
+      text-transform: uppercase; color: var(--cyan); opacity: .8;
+    }
+
+    .status-pill {
+      display: flex; align-items: center; gap: .45rem;
+      padding: .3rem .8rem;
+      border: 1px solid var(--border); background: var(--bg-1);
+      font-family: 'Space Mono', monospace; font-size: .65rem;
+      letter-spacing: .1em; text-transform: uppercase;
+    }
+
+    .dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--text-3); transition: background .3s;
+      flex-shrink: 0;
+    }
+
+    .status-pill.on .dot  { background: var(--ok); box-shadow: 0 0 7px var(--ok); animation: blink 2s infinite; }
+    .status-pill.off .dot { background: var(--err); }
+
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    /* ── MAIN ───────────────────────────────────── */
+    main { max-width: 1440px; margin: 0 auto; padding: 1.75rem 2rem 3rem; }
+
+    /* ── STATS ──────────────────────────────────── */
+    .stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; margin-bottom: 1.75rem; }
+
+    .card {
+      background: var(--bg-1); border: 1px solid var(--border);
+      padding: 1.4rem 1.6rem; position: relative; overflow: hidden;
+      transition: border-color .2s, transform .2s;
+    }
+    .card::before {
+      content: ''; position: absolute;
+      top: 0; left: 0; width: 3px; height: 100%;
+      background: var(--cyan); opacity: .55;
+    }
+    .card:hover { border-color: var(--border-hi); transform: translateY(-2px); }
+
+    .card-label {
+      font-family: 'Space Mono', monospace; font-size: .6rem;
+      color: var(--text-2); letter-spacing: .15em; text-transform: uppercase;
+      margin-bottom: .7rem;
+    }
+
+    .card-value {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2.8rem; line-height: 1; color: #fff; letter-spacing: .02em;
+    }
+
+    .card-sub {
+      font-family: 'Space Mono', monospace;
+      font-size: .62rem; color: var(--cyan); margin-top: .4rem; letter-spacing: .08em;
+    }
+
+    /* ── SEARCH PANEL ────────────────────────────── */
+    .panel {
+      background: var(--bg-1); border: 1px solid var(--border);
+      padding: 1.5rem 1.75rem; margin-bottom: 1.5rem;
+    }
+
+    .panel-label {
+      font-family: 'Space Mono', monospace; font-size: .65rem;
+      color: var(--cyan); letter-spacing: .15em; text-transform: uppercase;
+      margin-bottom: 1.1rem; display: flex; align-items: center; gap: .6rem;
+    }
+    .panel-label::before { content: '▸'; }
+
+    .form-row { display: flex; gap: .85rem; align-items: flex-end; }
+
+    .field { display: flex; flex-direction: column; gap: .4rem; flex: 1; }
+
+    .field label {
+      font-size: .72rem; color: var(--text-2); font-weight: 500; letter-spacing: .04em;
+    }
+
+    input[type=text] {
+      background: var(--bg-2); border: 1px solid var(--border);
+      color: var(--text); padding: .7rem .95rem;
+      font-family: 'Space Mono', monospace; font-size: .85rem; letter-spacing: .04em;
+      outline: none; width: 100%;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    input[type=text]:focus { border-color: var(--cyan); box-shadow: var(--cyan-glow); }
+    input[type=text]::placeholder { color: var(--text-3); }
+
+    .btn {
+      background: var(--cyan); color: #06080f;
+      border: none; padding: .7rem 1.85rem; height: 42px;
+      font-family: 'Bebas Neue', sans-serif; font-size: 1.05rem; letter-spacing: .18em;
+      cursor: pointer; display: flex; align-items: center; gap: .5rem;
+      transition: background .2s, box-shadow .15s, transform .1s;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .btn:hover:not(:disabled) { background: #33ecff; box-shadow: var(--cyan-glow); transform: translateY(-1px); }
+    .btn:disabled { background: var(--border-hi); color: var(--text-3); cursor: not-allowed; }
+    .btn .ring { width:13px;height:13px;border:2px solid rgba(6,8,16,.3);border-top-color:#06080f;border-radius:50%;animation:spin .6s linear infinite;display:none; }
+    .btn.loading .ring  { display:block; }
+    .btn.loading .ico   { display:none; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* mining feedback */
+    .feedback {
+      margin-top: 1rem; padding: .75rem 1rem;
+      background: var(--bg-2); border: 1px solid var(--border);
+      border-left: 3px solid var(--cyan);
+      font-family: 'Space Mono', monospace; font-size: .7rem; color: var(--cyan);
+      display: none;
+    }
+    .feedback.show { display: block; }
+
+    .progress-bar {
+      height: 2px; background: var(--border); margin-top: .55rem; overflow: hidden;
+    }
+    .progress-bar::after {
+      content: ''; display: block; height: 100%;
+      background: var(--cyan); width: 40%;
+      animation: sweep 1.4s ease-in-out infinite;
+    }
+    @keyframes sweep { 0%{transform:translateX(-150%)} 100%{transform:translateX(400%)} }
+    .progress-bar.done::after { display: none; }
+
+    .badges { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .6rem; }
+    .badge {
+      padding: .2rem .55rem; border: 1px solid var(--border-hi);
+      font-family: 'Space Mono', monospace; font-size: .6rem;
+      color: var(--text-2); letter-spacing: .05em;
+    }
+    .badge b { color: var(--cyan); }
+
+    /* ── TABLE ───────────────────────────────────── */
+    .tpanel { background: var(--bg-1); border: 1px solid var(--border); }
+
+    .thead-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.1rem 1.6rem; border-bottom: 1px solid var(--border);
+    }
+
+    .tcount {
+      font-family: 'Space Mono', monospace; font-size: .65rem;
+      color: var(--text-2); letter-spacing: .07em;
+    }
+    .tcount strong { color: var(--cyan); }
+
+    .btn-sm {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-2); padding: .35rem .8rem; cursor: pointer;
+      font-family: 'Space Mono', monospace; font-size: .6rem;
+      letter-spacing: .1em; text-transform: uppercase;
+      transition: border-color .2s, color .2s;
+    }
+    .btn-sm:hover { border-color: var(--cyan); color: var(--cyan); }
+
+    .table-wrap { overflow-x: auto; }
+
+    table { width: 100%; border-collapse: collapse; }
+
+    thead th {
+      font-family: 'Space Mono', monospace; font-size: .58rem;
+      letter-spacing: .14em; text-transform: uppercase;
+      color: var(--text-3); padding: .7rem 1.2rem;
+      text-align: left; border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border); cursor: pointer;
+      transition: background .12s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--cyan-dim); }
+    tbody tr:hover td.td-first { border-left-color: var(--cyan); }
+
+    td {
+      padding: .85rem 1.2rem; font-size: .8rem;
+    }
+
+    td.td-first { border-left: 3px solid var(--border); transition: border-color .12s; }
+
+    .cnj { font-family: 'Space Mono', monospace; font-size: .72rem; color: var(--cyan); white-space: nowrap; }
+    .trib { font-family: 'Space Mono', monospace; font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; }
+    .truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
+    .num { font-family: 'Space Mono', monospace; font-size: .7rem; color: var(--text-2); text-align: center; }
+
+    .tag {
+      display: inline-block; padding: .18rem .5rem;
+      font-family: 'Space Mono', monospace; font-size: .58rem;
+      letter-spacing: .06em; text-transform: uppercase;
+      border: 1px solid var(--border-hi); color: var(--text-2);
+    }
+    .tag.verde { border-color: rgba(0,230,118,.3); color: var(--ok); background: rgba(0,230,118,.06); }
+    .tag.laranja { border-color: rgba(255,174,0,.3); color: #ffae00; background: rgba(255,174,0,.06); }
+    .tag.vermelho { border-color: rgba(255,68,68,.3); color: #ff4444; background: rgba(255,68,68,.06); }
+    .tag.cinza { border-color: var(--border); color: var(--text-3); }
+
+    .tag-sm {
+      display: inline-block; padding: .12rem .35rem; border-radius: .2rem;
+      font-size: .5rem; font-weight: 700; letter-spacing: .06em;
+      border: 1px solid rgba(255,255,255,.1);
+      background: rgba(255,255,255,.05); color: var(--text-3);
+      text-transform: uppercase; margin-right: 4px;
+    }
+    .tag-sm.verde { background: rgba(0,255,157,.08); color: #00ff9d !important; border-color: rgba(0,255,157,.2); }
+    .tag-sm.vermelho { background: rgba(255,68,68,.08); color: #ff4444 !important; border-color: rgba(255,68,68,.2); }
+    .tag-sm.laranja { background: rgba(255,174,0,.08); color: #ffae00 !important; border-color: rgba(255,174,0,.2); }
+
+    /* empty / skeleton */
+    .empty { padding: 3.5rem 1rem; text-align: center; }
+    .empty-icon { font-size: 2rem; opacity: .2; margin-bottom: .75rem; }
+    .empty-msg { font-family: 'Space Mono', monospace; font-size: .7rem; color: var(--text-3); letter-spacing: .1em; }
+
+    /* ── MODAL ───────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(6,8,16,.88); backdrop-filter: blur(5px);
+      display: none; align-items: center; justify-content: center;
+      padding: 1.5rem;
+    }
+    .overlay.open { display: flex; animation: fadeIn .2s ease; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+    .modal {
+      background: var(--bg-1); border: 1px solid var(--border-hi);
+      width: 100%; max-width: 920px; max-height: 90vh;
+      display: flex; flex-direction: column;
+      animation: up .22s ease;
+    }
+    @keyframes up { from{transform:translateY(16px);opacity:0} to{transform:none;opacity:1} }
+
+    .modal-top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 1.1rem 1.6rem; border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .modal-tag { font-family: 'Space Mono', monospace; font-size: .62rem; color: var(--cyan); letter-spacing: .12em; text-transform: uppercase; }
+    .modal-num { font-family: 'Bebas Neue', sans-serif; font-size: 1.35rem; letter-spacing: .05em; color: #fff; margin-top: .15rem; }
+
+    .close-btn {
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-2); width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; font-size: .9rem; flex-shrink: 0;
+      transition: border-color .2s, color .2s;
+    }
+    .close-btn:hover { border-color: var(--err); color: var(--err); }
+
+    .modal-body { padding: 1.5rem 1.6rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.4rem; }
+
+    /* info grid */
+    .igrid { display: grid; grid-template-columns: repeat(3,1fr); gap: .9rem 1.4rem; }
+    .ikey { font-family: 'Space Mono', monospace; font-size: .58rem; color: var(--text-3); letter-spacing: .13em; text-transform: uppercase; margin-bottom: .25rem; }
+    .ival { font-size: .82rem; color: var(--text); }
+
+    /* section header */
+    .sec {
+      font-family: 'Space Mono', monospace; font-size: .62rem;
+      color: var(--cyan); letter-spacing: .14em; text-transform: uppercase;
+      padding-bottom: .45rem; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; gap: .5rem; margin-bottom: .6rem;
+    }
+
+    /* partes */
+    .parte-row {
+      display: flex; align-items: center; gap: .65rem;
+      padding: .55rem 0; border-bottom: 1px solid var(--border);
+    }
+    .parte-row:last-child { border-bottom: none; }
+
+    .ptag {
+      flex-shrink: 0; padding: .18rem .45rem;
+      font-family: 'Space Mono', monospace; font-size: .54rem;
+      letter-spacing: .06em; text-transform: uppercase; border: 1px solid;
+    }
+    .ptag.at { border-color: rgba(0,230,118,.4); color: var(--ok); }
+    .ptag.pa { border-color: rgba(255,82,82,.35); color: var(--err); }
+    .ptag.av { border-color: rgba(0,229,255,.35); color: var(--cyan); }
+    .ptag.ou { border-color: var(--border); color: var(--text-3); }
+
+    .pnome { font-size: .82rem; color: var(--text); flex: 1; }
+    .poab  { font-family: 'Space Mono', monospace; font-size: .62rem; color: var(--cyan); opacity: .65; white-space: nowrap; }
+    .ptipo { font-family: 'Space Mono', monospace; font-size: .58rem; color: var(--text-3); white-space: nowrap; }
+
+    /* movimentações */
+    .movs { max-height: 280px; overflow-y: auto; }
+
+    .mov-row {
+      display: grid; grid-template-columns: 95px 1fr;
+      gap: .9rem; padding: .6rem 0; border-bottom: 1px solid var(--border);
+      align-items: baseline;
+    }
+    .mov-row:last-child { border-bottom: none; }
+
+    .mov-dt { font-family: 'Space Mono', monospace; font-size: .63rem; color: var(--text-2); white-space: nowrap; }
+    .mov-ds { font-size: .8rem; color: var(--text); line-height: 1.4; }
+    .mov-cd { font-family: 'Space Mono', monospace; font-size: .58rem; color: var(--text-3); display: block; margin-top: .1rem; }
+
+    /* loading in modal */
+    .mloading { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem; gap: .9rem; }
+    .mloading .ring-lg { width:26px;height:26px;border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;animation:spin .7s linear infinite; }
+    .mloading span { font-family:'Space Mono',monospace; font-size:.7rem; color:var(--text-2); }
+
+    /* scrollbar */
+    ::-webkit-scrollbar{width:4px;height:4px}
+    ::-webkit-scrollbar-track{background:var(--bg)}
+    ::-webkit-scrollbar-thumb{background:var(--border-hi)}
+
+    /* responsive */
+    @media(max-width:720px){
+      main{padding:1rem}
+      .stats{grid-template-columns:1fr}
+      .form-row{flex-direction:column}
+      .igrid{grid-template-columns:1fr 1fr}
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo">
+      <span class="logo-main">Juridico Crawler</span>
+      <span class="logo-sub">Inteligência Jurídica</span>
+    </div>
+    <div id="statusPill" class="status-pill">
+      <div class="dot"></div>
+      <span id="statusTxt">verificando</span>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- STATS -->
+    <div class="stats">
+      <div class="card">
+        <div class="card-label">Processos Indexados</div>
+        <div class="card-value" id="sProc">—</div>
+        <div class="card-sub" id="sProcSub">aguardando</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Partes Cadastradas</div>
+        <div class="card-value" id="sPart">—</div>
+        <div class="card-sub">autores · réus · advogados</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Movimentações</div>
+        <div class="card-value" id="sMovs">—</div>
+        <div class="card-sub">andamentos processuais</div>
+      </div>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="panel">
+      <div class="panel-label">Mineração por OAB</div>
+      <div class="form-row">
+        <div class="field" style="max-width:220px">
+          <label for="oabIn">Número OAB</label>
+          <input id="oabIn" type="text" placeholder="361329" spellcheck="false" autocomplete="off" inputmode="numeric">
+        </div>
+        <div class="field" style="max-width:90px">
+          <label for="ufIn">UF</label>
+          <input id="ufIn" type="text" placeholder="SP" maxlength="2" spellcheck="false" autocomplete="off" style="text-transform:uppercase">
+        </div>
+        <div class="field" style="max-width:300px">
+          <label for="tribIn">Tribunais (opcional)</label>
+          <input id="tribIn" type="text" placeholder="tjsp, trt2, trf3 — vazio = todos" autocomplete="off">
+        </div>
+        <button class="btn" id="mineBtn" onclick="minerar()">
+          <span class="ico">⚡</span>
+          <div class="ring"></div>
+          BUSCA RÁPIDA
+        </button>
+      </div>
+      <div class="feedback" id="fb">
+        <span id="fbTxt">Consultando tribunais...</span>
+        <div class="progress-bar" id="pb"></div>
+        <div class="badges" id="fbBadges"></div>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="tpanel">
+      <div class="thead-bar">
+        <div>
+          <div class="panel-label" style="margin-bottom:.2rem">Processos Minerados</div>
+          <div class="tcount">Total: <strong id="tCount">0</strong></div>
+        </div>
+        <div style="display: flex; gap: 0.5rem">
+          <button class="btn-sm" style="color: var(--err); border-color: rgba(255,82,82,.35);" onclick="limparTudo()">✕ limpar base</button>
+          <button class="btn-sm" onclick="loadTable()">↺ atualizar</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Número CNJ</th>
+              <th>Tribunal</th>
+              <th>Classe Processual</th>
+              <th>Comarca</th>
+              <th>Situação</th>
+              <th style="text-align:center">Partes</th>
+              <th style="text-align:center">Movs.</th>
+              <th>Distribuição</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-top">
+      <div>
+        <div class="modal-tag">Detalhes do Processo</div>
+        <div class="modal-num" id="mNum">—</div>
+      </div>
+      <button class="close-btn" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="mBody">
+      <div class="mloading"><div class="ring-lg"></div><span>carregando...</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── API ──────────────────────────────────────────────────────────────────
+const get  = url => fetch(url).then(r => { if(!r.ok) throw Error(r.status); return r.json(); });
+const post = (url, body) => fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>{if(!r.ok)throw Error(r.status);return r.json();});
+const del  = url => fetch(url,{method:'DELETE'}).then(r=>{if(!r.ok)throw Error(r.status);});
+
+async function limparTudo() {
+  if (!confirm("Tem certeza que deseja apagar TODOS os processos do banco de dados? Essa ação não pode ser desfeita.")) return;
+  try {
+    const btn = document.querySelector('button[onclick="limparTudo()"]');
+    btn.textContent = 'limpando...';
+    btn.disabled = true;
+    await del('/processos/limpar-tudo');
+    await loadTable();
+    await loadStats();
+    btn.textContent = '✕ limpar base';
+    btn.disabled = false;
+  } catch(e) {
+    alert("Erro ao limpar dados: " + e.message);
+  }
+}
+
+// ── HEALTH ───────────────────────────────────────────────────────────────
+async function checkHealth(){
+  const p=document.getElementById('statusPill'), t=document.getElementById('statusTxt');
+  try{
+    const d=await get('/health');
+    p.className='status-pill on'; t.textContent='ONLINE · '+d.scheduler;
+  }catch{
+    p.className='status-pill off'; t.textContent='OFFLINE';
+  }
+}
+
+// ── STATS ────────────────────────────────────────────────────────────────
+async function loadStats(){
+  try{
+    const d=await get('/processos/?limite=1');
+    tick('sProc', d.total);
+    document.getElementById('sProcSub').textContent = d.total===1?'processo indexado':'processos indexados';
+  }catch{}
+  try{
+    const d=await get('/stats');
+    tick('sPart', d.total_partes||0);
+    tick('sMovs', d.total_movimentacoes||0);
+  }catch{
+    document.getElementById('sPart').textContent='—';
+    document.getElementById('sMovs').textContent='—';
+  }
+}
+
+function tick(id, target){
+  const el=document.getElementById(id), t0=performance.now();
+  const go=now=>{
+    const p=Math.min((now-t0)/750,1), e=1-Math.pow(1-p,3);
+    el.textContent=Math.floor(e*target).toLocaleString('pt-BR');
+    if(p<1) requestAnimationFrame(go);
+  };
+  requestAnimationFrame(go);
+}
+
+// ── TABLE ────────────────────────────────────────────────────────────────
+async function loadTable(){
+  const tb=document.getElementById('tbody');
+  tb.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-icon" style="animation:spin 1s linear infinite;display:inline-block">⟳</div><div class="empty-msg">carregando...</div></div></td></tr>`;
+  try{
+    const d=await get('/processos/?limite=200');
+    document.getElementById('tCount').textContent=d.total.toLocaleString('pt-BR');
+    render(d.processos);
+    tick('sProc',d.total);
+  }catch(e){
+    tb.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-icon">⚠</div><div class="empty-msg">${e.message}</div></div></td></tr>`;
+  }
+}
+
+function render(rows){
+  const tb=document.getElementById('tbody');
+  if(!rows.length){
+    tb.innerHTML=`<tr><td colspan="8"><div class="empty"><div class="empty-icon">⊘</div><div class="empty-msg">nenhum processo minerado ainda<br>use o formulário acima para iniciar</div></div></td></tr>`;
+    return;
+  }
+  tb.innerHTML=renderRows(rows);
+}
+
+function renderRows(rows){
+  return rows.map(p=>{
+    const sit=(p.situacao||'').toLowerCase();
+    const tc=sit.includes('ativo')||sit.includes('andamento')?'verde':sit.includes('arquiv')||sit.includes('encerr')?'cinza':'';
+    const dt=p.data_distribuicao?new Date(p.data_distribuicao+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+    const sl=p.situacao?p.situacao.substring(0,18):'—';
+    const nPartes = p.partes!=null ? p.partes.length : (p.total_partes??'—');
+    const nMovs   = p.total_movimentacoes??'—';
+    return `<tr onclick="openProcess('${p.numero_cnj}')" class="new-row">
+      <td class="td-first"><span class="cnj">${p.numero_cnj}</span></td>
+      <td><span class="trib">${(p.tribunal||'').toUpperCase()}</span></td>
+      <td><span class="truncate">${p.classe_processual||'—'}</span></td>
+      <td><span class="truncate">${p.comarca||'—'}</span></td>
+      <td><span class="tag ${tc}">${sl}</span></td>
+      <td class="num">${nPartes}</td>
+      <td class="num">${nMovs}</td>
+      <td style="font-family:'Space Mono',monospace;font-size:.7rem;color:var(--text-2)">${dt}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── MINERAR ──────────────────────────────────────────────────────────────
+async function minerar(){
+  const num=document.getElementById('oabIn').value.trim();
+  const uf=document.getElementById('ufIn').value.trim().toUpperCase();
+  if(!num || !uf || uf.length!==2){ document.getElementById('ufIn').focus(); return; }
+  const oab=`${num} ${uf}`;
+
+  const tribRaw=document.getElementById('tribIn').value.trim();
+  const tribs=tribRaw?tribRaw.split(',').map(t=>t.trim().toLowerCase()).filter(Boolean):null;
+
+  const btn=document.getElementById('mineBtn');
+  const fb=document.getElementById('fb');
+  const pb=document.getElementById('pb');
+  const fbTxt=document.getElementById('fbTxt');
+  const badges=document.getElementById('fbBadges');
+  const tb=document.getElementById('tbody');
+
+  btn.disabled=true; btn.classList.add('loading');
+  fb.classList.add('show'); pb.classList.remove('done');
+  badges.innerHTML='';
+  fbTxt.textContent=`Iniciando busca inteligente para OAB ${oab}...`;
+
+  let totalEncontrado = 0;
+
+  try {
+    const body = { oab, salvar_no_banco: true, usar_ai_parser: false, complementar_tribunais: false };
+    if(tribs) body.tribunais = tribs;
+    
+    const response = await fetch('/oab/minerar/stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Falha na conexão com o servidor');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let partial = "";
+
+    while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        partial += decoder.decode(value, { stream: true });
+        const lines = partial.split("\n");
+        partial = lines.pop();
+
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+                const ev = JSON.parse(line);
+                
+                if (ev.type === 'start') {
+                    fbTxt.textContent = `Busca iniciada em escala nacional para ${ev.oab}...`;
+                } else if (ev.type === 'data') {
+                    totalEncontrado += ev.count;
+                    fbTxt.textContent = `Encontrados ${totalEncontrado} processos... (recebendo de ${ev.sistema.toUpperCase()})`;
+                    
+                    if (ev.count > 0) {
+                        const b = document.createElement('div');
+                        b.className = 'badge';
+                        b.innerHTML = `${ev.sistema.toUpperCase()}: <b>${ev.count}</b>`;
+                        badges.appendChild(b);
+                    }
+
+                    if (ev.processos && ev.processos.length > 0) {
+                        const rowsHtml = renderRows(ev.processos);
+                        if (tb.querySelector('.empty')) tb.innerHTML = '';
+                        tb.insertAdjacentHTML('afterbegin', rowsHtml);
+                    }
+                    
+                    document.getElementById('tCount').textContent = totalEncontrado.toLocaleString('pt-BR');
+                } else if (ev.type === 'error') {
+                    console.error("Erro no stream:", ev.msg);
+                    fbTxt.innerHTML = `<span style="color:var(--vermelho)">⚠ Erro no sistema ${ev.sistema || ''}: ${ev.msg}</span>`;
+                } else if (ev.type === 'done') {
+                    fbTxt.textContent = `✓ Busca concluída — ${ev.total} processos encontrados no total.`;
+                    pb.classList.add('done');
+                }
+            } catch (e) {
+                console.error("Erro de parse NDJSON:", e, "Linha:", line);
+            }
+        }
+    }
+    
+    await loadStats();
+  } catch (e) {
+    console.error("Erro na mineração:", e);
+    fbTxt.textContent = `⚠ Erro: ${e.message}`;
+    pb.classList.add('done');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
+
+document.getElementById('oabIn').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('ufIn').focus(); });
+document.getElementById('ufIn').addEventListener('keydown',e=>{ if(e.key==='Enter') minerar(); });
+document.getElementById('tribIn').addEventListener('keydown',e=>{ if(e.key==='Enter') minerar(); });
+
+// ── MODAL ────────────────────────────────────────────────────────────────
+async function openProcess(cnj){
+  const ov=document.getElementById('overlay');
+  const mb=document.getElementById('mBody');
+  document.getElementById('mNum').textContent=cnj;
+  mb.innerHTML=`<div class="mloading"><div class="ring-lg"></div><span>carregando detalhes...</span></div>`;
+  ov.classList.add('open');
+  try{
+    const p=await get(`/processos/${encodeURIComponent(cnj)}`);
+    renderModal(p);
+  }catch(e){
+    mb.innerHTML=`<div class="mloading"><span>⚠ ${e.message}</span></div>`;
+  }
+}
+
+function renderModal(p){
+  document.getElementById('mNum').textContent=p.numero_cnj;
+  const mb=document.getElementById('mBody');
+
+  const f=v=>v||'—';
+  const fd=d=>d?new Date(d+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+  const fv=v=>v?'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2}):'—';
+
+  const partes=p.partes||[];
+  const movs=p.movimentacoes||[];
+
+  const ptag=(parte)=>{
+    if(parte.tipo_parte==='ADVOGADO') return ['av','ADV'];
+    if(parte.polo==='ATIVO')  return ['at','ATIV'];
+    if(parte.polo==='PASSIVO') return ['pa','PAS'];
+    return ['ou', (parte.tipo_parte||'?').substring(0,4)];
+  };
+
+  const pHtml=partes.map(p=>{
+    const [cls,lbl]=ptag(p);
+    return `<div class="parte-row">
+      <span class="ptag ${cls}">${lbl}</span>
+      <span class="pnome">${p.nome}</span>
+      ${p.oab?`<span class="poab">OAB ${p.oab}</span>`:''}
+      <span class="ptipo">${p.tipo_parte||''}</span>
+    </div>`;
+  }).join('');
+
+    const mHtml=movs.length
+    ?movs.slice(0,60).map(m=>{
+        const dt=m.data_movimentacao?new Date(m.data_movimentacao+'T00:00:00').toLocaleDateString('pt-BR'):'—';
+        const impCls = m.impacto==='POSITIVO'?'verde':m.impacto==='NEGATIVO'?'vermelho':m.impacto==='URGENTE'?'laranja':'cinza';
+        const catLbl = m.categoria ? `<span class="tag-sm">${m.categoria}</span>` : '';
+        const impLbl = m.impacto ? `<span class="tag-sm ${impCls}">${m.impacto}</span>` : '';
+        
+        return `<div class="mov-row" style="display:flex;gap:10px;align-items:flex-start">
+          <span class="mov-dt" style="min-width:80px">${dt}</span>
+          <div style="flex:1">
+            <div style="display:flex;gap:5px;margin-bottom:4px">
+              ${catLbl} ${impLbl}
+            </div>
+            <span class="mov-ds">${m.descricao}${m.codigo_nacional?`<span class="mov-cd">cód. ${m.codigo_nacional}</span>`:''}</span>
+          </div>
+        </div>`;
+      }).join('')
+    :'<div style="color:var(--text-3);font-size:.8rem;padding:.75rem 0">Nenhuma movimentação registrada</div>';
+
+  mb.innerHTML=`
+    <div class="igrid">
+      ${[['Tribunal',(p.tribunal||'').toUpperCase()],['Vara',f(p.vara)],['Comarca',f(p.comarca)],
+         ['Classe',f(p.classe_processual)],['Assunto',f(p.assunto)],['Valor da Causa',fv(p.valor_causa)],
+         ['Distribuição',fd(p.data_distribuicao)],['Situação',f(p.situacao)],
+         ['Segredo',p.segredo_justica?'⚠ Sim':'Não']
+        ].map(([k,v])=>`<div><div class="ikey">${k}</div><div class="ival">${v}</div></div>`).join('')}
+    </div>
+    ${partes.length?`
+    <div>
+      <div class="sec">Partes · ${partes.length}</div>
+      ${pHtml}
+    </div>`:''}
+    <div>
+      <div class="sec">Movimentações · ${movs.length}</div>
+      <div class="movs">${mHtml}</div>
+    </div>`;
+}
+
+function closeModal(e){
+  if(e&&e.target!==document.getElementById('overlay')) return;
+  document.getElementById('overlay').classList.remove('open');
+}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') document.getElementById('overlay').classList.remove('open'); });
+
+// ── INIT ─────────────────────────────────────────────────────────────────
+checkHealth();
+loadTable();
+loadStats();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>

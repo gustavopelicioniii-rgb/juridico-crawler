@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JurídicoCrawler — Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { height: 100%; }
+    body { font-family: 'Inter', sans-serif; background: #080d16; color: #e2e8f0; min-height: 100vh; overflow-x: hidden; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #1e2d42; border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: #2d3f57; }
+
+    /* ── Keyframes ── */
+    @keyframes fadeUp   { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes fadeIn   { from { opacity:0; } to { opacity:1; } }
+    @keyframes slideRight { from { opacity:0; transform:translateX(-12px); } to { opacity:1; transform:translateX(0); } }
+    @keyframes pulse2   { 0%,100%{opacity:1;} 50%{opacity:.35;} }
+    @keyframes spin     { to { transform:rotate(360deg); } }
+    @keyframes shimmer  { 0%{background-position:-400% 0} 100%{background-position:400% 0} }
+    @keyframes flowMove { 0%{stroke-dashoffset:100} 100%{stroke-dashoffset:0} }
+    @keyframes countUp  { from{opacity:0;transform:translateY(6px);} to{opacity:1;transform:translateY(0);} }
+    @keyframes notifBounce { 0%,100%{transform:scale(1);} 50%{transform:scale(1.2);} }
+    @keyframes drawerSlide { from{transform:translateX(100%);opacity:0;} to{transform:translateX(0);opacity:1;} }
+    @keyframes modalScale { from{opacity:0;transform:scale(.96);} to{opacity:1;transform:scale(1);} }
+    @keyframes barGrow  { from{width:0;} to{width:var(--target-w);} }
+
+    .fade-up   { animation: fadeUp   .35s cubic-bezier(.22,1,.36,1) both; }
+    .fade-in   { animation: fadeIn   .25s ease both; }
+    .slide-r   { animation: slideRight .3s cubic-bezier(.22,1,.36,1) both; }
+
+    /* Delay utilities */
+    .d1{animation-delay:.04s} .d2{animation-delay:.08s} .d3{animation-delay:.12s}
+    .d4{animation-delay:.16s} .d5{animation-delay:.2s}  .d6{animation-delay:.24s}
+    .d7{animation-delay:.28s} .d8{animation-delay:.32s}
+
+    /* ── Skeleton ── */
+    .skel {
+      background: linear-gradient(90deg,#0f1c2e 25%,#162235 50%,#0f1c2e 75%);
+      background-size: 400% 100%;
+      animation: shimmer 1.6s infinite;
+      border-radius: 8px;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      position: fixed; left:0; top:0; bottom:0;
+      width: 220px; background: #0a1220;
+      border-right: 1px solid #0f2035;
+      display: flex; flex-direction: column;
+      z-index: 40; transition: width .2s ease;
+    }
+    #sidebar.collapsed { width: 60px; }
+    #sidebar.collapsed .nav-label,
+    #sidebar.collapsed .nav-section,
+    #sidebar.collapsed .sidebar-logo-text { display:none !important; }
+    #sidebar.collapsed .nav-item { justify-content: center; padding: 10px; }
+
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 14px; border-radius: 10px; margin: 1px 8px;
+      color: #4a6080; font-size: 13px; font-weight: 500;
+      cursor: pointer; transition: all .15s; border: none; background: none; width: calc(100% - 16px); text-align: left;
+    }
+    .nav-item:hover { background: #0f2035; color: #7b9abf; }
+    .nav-item.active { background: rgba(99,102,241,.12); color: #a5b4fc; }
+    .nav-item.active svg { color: #818cf8; }
+    .nav-section { font-size: 10px; font-weight: 700; color: #1e3348; letter-spacing: .1em; text-transform: uppercase; padding: 16px 22px 6px; }
+    .nav-badge { background: #6366f1; color: white; font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 99px; margin-left: auto; }
+    .nav-badge.red { background: #ef4444; }
+    .nav-badge.amber { background: #f59e0b; }
+
+    /* ── Main layout ── */
+    #app { margin-left: 220px; transition: margin-left .2s ease; min-height: 100vh; display: flex; flex-direction: column; }
+    #app.collapsed { margin-left: 60px; }
+
+    /* ── Top bar ── */
+    #topbar {
+      position: sticky; top: 0; z-index: 30;
+      background: rgba(8,13,22,.92); backdrop-filter: blur(16px);
+      border-bottom: 1px solid #0f2035;
+      padding: 0 24px; height: 54px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: #0c1828;
+      border: 1px solid #0f2035;
+      border-radius: 16px;
+      transition: border-color .2s;
+    }
+    .card:hover { border-color: #1a3050; }
+    .card-glass {
+      background: rgba(12,24,40,.7);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(15,32,53,.8);
+      border-radius: 16px;
+    }
+
+    /* ── Stat cards ── */
+    .stat-card {
+      background: #0c1828;
+      border: 1px solid #0f2035;
+      border-radius: 16px; padding: 18px;
+      cursor: default;
+      transition: transform .15s, border-color .15s, box-shadow .15s;
+    }
+    .stat-card:hover { transform: translateY(-2px); border-color: #1a3050; box-shadow: 0 8px 32px rgba(0,0,0,.4); }
+
+    /* ── Buttons ── */
+    .btn-primary {
+      background: linear-gradient(135deg,#5457d4,#7c3aed);
+      color: white; border-radius: 10px; font-size: 13px; font-weight: 600;
+      padding: 9px 18px; border: none; cursor: pointer;
+      transition: opacity .15s, transform .1s, box-shadow .15s;
+      display: inline-flex; align-items: center; gap: 7px;
+    }
+    .btn-primary:hover { opacity: .9; box-shadow: 0 4px 20px rgba(99,102,241,.3); }
+    .btn-primary:active { transform: scale(.98); }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .btn-ghost {
+      background: #0f2035; color: #5a7a9a; border-radius: 9px;
+      font-size: 12px; font-weight: 500; padding: 8px 14px;
+      border: 1px solid #142540; cursor: pointer;
+      transition: background .15s, color .15s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-ghost:hover { background: #142540; color: #8aa0c0; }
+    .btn-ghost:disabled { opacity: .4; cursor: not-allowed; }
+
+    .btn-icon {
+      background: #0f2035; border: 1px solid #142540; border-radius: 9px;
+      width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: background .15s, color .15s; color: #4a6080;
+    }
+    .btn-icon:hover { background: #142540; color: #7b9abf; }
+
+    /* ── Inputs ── */
+    .inp {
+      background: #060e1a; border: 1px solid #0f2035;
+      color: #c8d8e8; border-radius: 10px; outline: none;
+      font-size: 13px; padding: 9px 14px;
+      transition: border-color .15s, box-shadow .15s;
+      font-family: 'Inter', sans-serif; width: 100%;
+    }
+    .inp:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+    .inp::placeholder { color: #2a4060; }
+    .inp.mono-inp { font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: .05em; }
+    select.inp option { background: #0c1828; }
+
+    /* ── Badges ── */
+    .badge { display: inline-flex; align-items: center; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; }
+    .badge-green  { background: rgba(16,185,129,.12); color: #34d399; }
+    .badge-red    { background: rgba(239,68,68,.1);   color: #f87171; }
+    .badge-indigo { background: rgba(99,102,241,.12); color: #a5b4fc; }
+    .badge-violet { background: rgba(139,92,246,.12); color: #c4b5fd; }
+    .badge-amber  { background: rgba(245,158,11,.12); color: #fcd34d; }
+    .badge-slate  { background: rgba(100,116,139,.12);color: #94a3b8; }
+    .badge-demo   { background: rgba(245,158,11,.18); color: #fbbf24; border: 1px solid rgba(245,158,11,.3); }
+    .badge-up   { background: rgba(16,185,129,.1); color: #34d399; }
+    .badge-down { background: rgba(239,68,68,.1);  color: #f87171; }
+
+    /* ── Polo ── */
+    .polo-ativo   { background: rgba(99,102,241,.1); color: #a5b4fc; border: 1px solid rgba(99,102,241,.2); }
+    .polo-passivo { background: rgba(239,68,68,.09); color: #fca5a5; border: 1px solid rgba(239,68,68,.2); }
+    .polo-adv     { background: rgba(245,158,11,.1); color: #fcd34d; border: 1px solid rgba(245,158,11,.2); }
+    .polo-outros  { background: rgba(100,116,139,.1);color: #94a3b8; border: 1px solid rgba(100,116,139,.2); }
+
+    /* ── Timeline ── */
+    .tl-line { position:absolute; left:7px; top:20px; bottom:0; width:1.5px; background:linear-gradient(to bottom,#1a3558,transparent); }
+    .tl-dot  { width:16px; height:16px; border-radius:50%; flex-shrink:0; border:2.5px solid #080d16; }
+
+    /* ── Spinner ── */
+    .spinner { width:18px; height:18px; border:2px solid rgba(99,102,241,.2); border-top-color:#6366f1; border-radius:50%; animation:spin .6s linear infinite; }
+
+    /* ── Status dot ── */
+    .dot-online  { background:#10b981; box-shadow:0 0 0 3px rgba(16,185,129,.15); }
+    .dot-offline { background:#ef4444; box-shadow:0 0 0 3px rgba(239,68,68,.15); }
+    .dot-demo    { background:#f59e0b; box-shadow:0 0 0 3px rgba(245,158,11,.15); }
+
+    /* ── Tab ── */
+    .tab-btn { color:#3a5878; border-bottom:2px solid transparent; transition:all .15s; font-size:12px; font-weight:600; padding:12px 0; }
+    .tab-btn.active { color:#a5b4fc; border-bottom-color:#6366f1; }
+    .tab-btn:hover:not(.active) { color:#6a8aaa; }
+
+    /* ── Table ── */
+    .trow { transition: background .12s; cursor: pointer; }
+    .trow:hover { background: rgba(99,102,241,.04); }
+
+    /* ── Notification drawer ── */
+    #notifDrawer {
+      display:none;
+      position:fixed; right:0; top:0; bottom:0; width:340px;
+      background:#090f1c; border-left:1px solid #0f2035;
+      z-index:60;
+      flex-direction:column;
+    }
+    #notifDrawer.open {
+      display:flex;
+      animation:drawerSlide .25s cubic-bezier(.22,1,.36,1);
+    }
+
+    /* ── Process modal ── */
+    #modalOverlay {
+      display:none;
+      position:fixed; inset:0; background:rgba(0,0,0,.7); backdrop-filter:blur(4px);
+      z-index:50; align-items:flex-start; justify-content:center;
+      padding: 24px;
+    }
+    #modalOverlay.open {
+      display:flex;
+    }
+
+    /* ── Notification backdrop ── */
+    #notifBackdrop {
+      display:none;
+      position:fixed; inset:0; z-index:59; background:transparent;
+    }
+    #modalBox {
+      background:#0a1220; border:1px solid #1a3050; border-radius:20px;
+      width:100%; max-width:820px; max-height:calc(100vh - 48px);
+      overflow-y:auto; animation:modalScale .22s cubic-bezier(.22,1,.36,1);
+    }
+
+    /* ── Party duel ── */
+    .party-col {
+      background: #060e1a; border: 1px solid #0f2035;
+      border-radius: 14px; padding: 16px; flex: 1;
+    }
+    .party-vs {
+      display:flex; align-items:center; justify-content:center;
+      width:36px; flex-shrink:0;
+    }
+
+    /* ── Flow SVG ── */
+    .flow-path { stroke-dasharray: 8 4; animation: flowMove 1.5s linear infinite; }
+
+    /* ── Progress bar ── */
+    .prog-bar { height:6px; border-radius:99px; background:#0f2035; overflow:hidden; }
+    .prog-fill { height:100%; border-radius:99px; animation: barGrow .7s cubic-bezier(.22,1,.36,1) both; }
+
+    /* ── Glow effects ── */
+    .glow-indigo { box-shadow: 0 0 20px rgba(99,102,241,.15); }
+    .glow-green  { box-shadow: 0 0 20px rgba(16,185,129,.12); }
+    .glow-amber  { box-shadow: 0 0 20px rgba(245,158,11,.12); }
+    .glow-red    { box-shadow: 0 0 20px rgba(239,68,68,.12); }
+
+    /* ── Chart container ── */
+    .chart-wrap { position:relative; }
+
+    /* ── Process card ── */
+    .proc-card {
+      background:#0c1828; border:1px solid #0f2035; border-radius:14px;
+      padding:14px 16px; cursor:pointer;
+      transition: border-color .15s, transform .15s, box-shadow .15s;
+    }
+    .proc-card:hover { border-color:#2a4a70; transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.4); }
+
+    /* search highlight */
+    mark { background:rgba(99,102,241,.25); color:#a5b4fc; border-radius:2px; }
+
+    /* Impact */
+    .imp-positivo { background:rgba(16,185,129,.1);  color:#6ee7b7; }
+    .imp-negativo { background:rgba(239,68,68,.09);  color:#fca5a5; }
+    .imp-urgente  { background:rgba(245,158,11,.11); color:#fcd34d; }
+    .imp-neutro   { background:rgba(99,102,241,.1);  color:#a5b4fc; }
+
+    /* ── Responsive ── */
+    @media(max-width:768px){
+      #sidebar{width:0;overflow:hidden;}
+      #app{margin-left:0;}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     SIDEBAR
+═══════════════════════════════════════════════ -->
+<nav id="sidebar">
+  <!-- Logo -->
+  <div class="flex items-center gap-3 px-4 h-14 border-b border-[#0f2035] flex-shrink-0">
+    <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-700 flex items-center justify-center flex-shrink-0">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <div class="sidebar-logo-text min-w-0">
+      <p class="text-[13px] font-bold text-white leading-none">JurídicoCrawler</p>
+      <p class="text-[10px] text-[#2a4060] mt-0.5">v2.0 · Dashboard</p>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <div class="flex-1 overflow-y-auto py-2">
+    <p class="nav-section">Principal</p>
+    <button class="nav-item active" onclick="showPage('overview')" data-page="overview">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      <span class="nav-label">Overview</span>
+    </button>
+    <button class="nav-item" onclick="showPage('processos')" data-page="processos">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span class="nav-label">Processos</span>
+      <span class="nav-badge" id="nb-processos">—</span>
+    </button>
+    <button class="nav-item" onclick="showPage('partes')" data-page="partes">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span class="nav-label">Partes & OAB</span>
+    </button>
+    <button class="nav-item" onclick="showPage('prazos')" data-page="prazos">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span class="nav-label">Prazos</span>
+      <span class="nav-badge amber" id="nb-prazos">—</span>
+    </button>
+    <button class="nav-item" onclick="showPage('monitoramento')" data-page="monitoramento">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      <span class="nav-label">Monitoramento</span>
+      <span class="nav-badge" id="nb-mon">—</span>
+    </button>
+
+    <p class="nav-section">Ferramentas</p>
+    <button class="nav-item" onclick="showPage('busca')" data-page="busca">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <span class="nav-label">Buscar Processo</span>
+    </button>
+    <button class="nav-item" onclick="showPage('arquitetura')" data-page="arquitetura">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      <span class="nav-label">Arquitetura</span>
+    </button>
+    <button class="nav-item" onclick="showPage('apidocs')" data-page="apidocs">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+      <span class="nav-label">API Docs</span>
+    </button>
+  </div>
+
+  <!-- Bottom: API Config -->
+  <div class="border-t border-[#0f2035] p-3 flex-shrink-0 space-y-2">
+    <input type="text" id="api-url" class="inp text-[10px] mono-inp" value="http://127.0.0.1:8000" placeholder="URL da API" />
+    <input id="cfgKey" type="password" class="inp text-[11px]" style="padding:6px 10px;" placeholder="X-API-Key (opcional)" />
+    <button onclick="reconnect()" class="btn-ghost w-full justify-center text-[11px]" style="padding:6px;">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+      Reconectar
+    </button>
+  </div>
+</nav>
+
+<!-- ═══════════════════════════════════════════════
+     APP
+═══════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- TOP BAR -->
+  <header id="topbar">
+    <div class="flex items-center gap-3">
+      <button class="btn-icon" onclick="toggleSidebar()" title="Toggle sidebar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <div id="breadcrumb" class="text-sm text-[#3a5878] font-medium">
+        <span class="text-white">Overview</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <!-- Demo badge -->
+      <span id="demoBadge" class="badge badge-demo hidden">⚡ MODO DEMO</span>
+
+      <!-- Status -->
+      <div class="flex items-center gap-2 bg-[#060e1a] border border-[#0f2035] rounded-xl px-3 py-1.5">
+        <div id="statusDot" class="w-2 h-2 rounded-full dot-offline" style="animation:pulse2 2s infinite;"></div>
+        <span id="statusTxt" class="text-[11px] text-[#3a5878]">Conectando...</span>
+      </div>
+
+      <!-- Search quick -->
+      <div class="relative">
+        <input id="quickSearch" class="inp text-xs w-48" style="padding:7px 12px 7px 32px;" placeholder="Busca rápida..." oninput="quickSearchFn(this.value)" />
+        <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#2a4060]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <div id="quickResults" class="hidden absolute top-full left-0 right-0 mt-1 bg-[#0a1220] border border-[#1a3050] rounded-xl shadow-2xl overflow-hidden z-50 max-h-64 overflow-y-auto"></div>
+      </div>
+
+      <!-- Notifications -->
+      <button class="btn-icon relative" onclick="toggleNotif()" title="Notificações">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span id="notifBadge" class="hidden absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center" style="animation:notifBounce 2s ease infinite">!</span>
+      </button>
+
+      <!-- Clock -->
+      <div class="text-[11px] text-[#2a4060] mono" id="clock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- PAGE CONTENT -->
+  <main id="pageContent" class="flex-1 p-6 space-y-5 max-w-screen-2xl mx-auto w-full">
+    <!-- Rendered by JS -->
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     NOTIFICATION BACKDROP
+═══════════════════════════════════════════════ -->
+<div id="notifBackdrop" onclick="toggleNotif()"></div>
+
+<!-- ═══════════════════════════════════════════════
+     NOTIFICATION DRAWER
+═══════════════════════════════════════════════ -->
+<div id="notifDrawer">
+  <div class="flex items-center justify-between p-4 border-b border-[#0f2035]">
+    <h3 class="text-sm font-bold text-white">Notificações</h3>
+    <button class="btn-icon" onclick="toggleNotif()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div id="notifList" class="flex-1 overflow-y-auto p-3 space-y-2"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     PROCESS MODAL
+═══════════════════════════════════════════════ -->
+<div id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div id="modalBox"></div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     SCRIPT
+═══════════════════════════════════════════════ -->
+<script>
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// DEMO DATA
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const DEMO = {
+  processos: [
+    { id:1, numero_cnj:'0012345-67.2023.8.26.0100', tribunal:'tjsp', grau:'G1', vara:'3ª Vara Cível', comarca:'São Paulo', classe_processual:'Ação de Indenização', assunto:'Responsabilidade Civil', valor_causa:285000, data_distribuicao:'2023-03-14', situacao:'Em Andamento', segredo_justica:false, ultima_movimentacao_data:'2024-12-18',
+      partes:[
+        {id:1,tipo_parte:'AUTOR',nome:'Construtora Horizonte Ltda',documento:'12.345.678/0001-90',oab:null,polo:'ATIVO'},
+        {id:2,tipo_parte:'RÉU',nome:'Banco Meridional S.A.',documento:'98.765.432/0001-10',oab:null,polo:'PASSIVO'},
+        {id:3,tipo_parte:'ADVOGADO',nome:'Dr. Rafael Mendes',documento:null,oab:'234567 SP',polo:'ATIVO'},
+        {id:4,tipo_parte:'ADVOGADO',nome:'Dra. Camila Torres',documento:null,oab:'89012 SP',polo:'PASSIVO'},
+      ],
+      movimentacoes:[
+        {id:1,data_movimentacao:'2024-12-18',tipo:'Decisão Interlocutória',descricao:'Deferida a antecipação dos efeitos da tutela recursal para suspender os efeitos da sentença recorrida.',impacto:'POSITIVO',categoria:'DECISAO'},
+        {id:2,data_movimentacao:'2024-11-05',tipo:'Audiência Realizada',descricao:'Audiência de instrução e julgamento realizada. Ouvidas as testemunhas arroladas pelas partes.',impacto:'NEUTRO',categoria:'AUDIENCIA'},
+        {id:3,data_movimentacao:'2024-09-20',tipo:'Contestação Apresentada',descricao:'Réu apresentou contestação tempestivamente com documentos comprobatórios.',impacto:'NEGATIVO',categoria:'PETICAO'},
+        {id:4,data_movimentacao:'2023-03-14',tipo:'Distribuição',descricao:'Processo distribuído ao juízo da 3ª Vara Cível da Comarca de São Paulo.',impacto:'NEUTRO',categoria:'DISTRIBUICAO'},
+      ]
+    },
+    { id:2, numero_cnj:'0098765-43.2022.4.03.6100', tribunal:'trf3', grau:'G1', vara:'7ª Vara Federal', comarca:'São Paulo', classe_processual:'Mandado de Segurança', assunto:'Licitação e Contratos Administrativos', valor_causa:0, data_distribuicao:'2022-08-02', situacao:'Suspenso', segredo_justica:false, ultima_movimentacao_data:'2024-10-30',
+      partes:[
+        {id:5,tipo_parte:'IMPETRANTE',nome:'Tech Solutions Brasil S.A.',documento:'55.432.109/0001-77',oab:null,polo:'ATIVO'},
+        {id:6,tipo_parte:'IMPETRADO',nome:'União Federal — Ministério da Economia',documento:null,oab:null,polo:'PASSIVO'},
+        {id:7,tipo_parte:'ADVOGADO',nome:'Dr. Paulo Drummond',documento:null,oab:'156789 SP',polo:'ATIVO'},
+      ],
+      movimentacoes:[
+        {id:5,data_movimentacao:'2024-10-30',tipo:'Liminar Concedida',descricao:'Deferida liminar para suspender o ato impugnado até julgamento final do mérito.',impacto:'POSITIVO',categoria:'DECISAO'},
+        {id:6,data_movimentacao:'2024-07-15',tipo:'Informações Prestadas',descricao:'Autoridade coatora prestou informações no prazo legal.',impacto:'NEUTRO',categoria:'PETICAO'},
+        {id:7,data_movimentacao:'2022-08-02',tipo:'Impetração',descricao:'Impetrado mandado de segurança com pedido de liminar.',impacto:'NEUTRO',categoria:'DISTRIBUICAO'},
+      ]
+    },
+    { id:3, numero_cnj:'0054321-98.2024.5.15.0001', tribunal:'trt15', grau:'G1', vara:'1ª Vara do Trabalho', comarca:'Campinas', classe_processual:'Reclamação Trabalhista', assunto:'Horas Extras / FGTS', valor_causa:47500, data_distribuicao:'2024-01-10', situacao:'Em Andamento', segredo_justica:false, ultima_movimentacao_data:'2024-12-01',
+      partes:[
+        {id:8,tipo_parte:'RECLAMANTE',nome:'João Carlos Silva',documento:'123.456.789-00',oab:null,polo:'ATIVO'},
+        {id:9,tipo_parte:'RECLAMADA',nome:'Logística Express Ltda',documento:'77.888.999/0001-55',oab:null,polo:'PASSIVO'},
+        {id:10,tipo_parte:'ADVOGADO',nome:'Dra. Ana Beatriz Lima',documento:null,oab:'361329 SP',polo:'ATIVO'},
+        {id:11,tipo_parte:'ADVOGADO',nome:'Dr. Marcos Ferreira',documento:null,oab:'412890 SP',polo:'PASSIVO'},
+      ],
+      movimentacoes:[
+        {id:8,data_movimentacao:'2024-12-01',tipo:'Audiência Designada',descricao:'Designada audiência de instrução para 15/02/2025 às 14h.',impacto:'NEUTRO',categoria:'AUDIENCIA'},
+        {id:9,data_movimentacao:'2024-06-20',tipo:'Defesa Apresentada',descricao:'Reclamada apresentou defesa e documentos. Requer improcedência de todos os pedidos.',impacto:'NEGATIVO',categoria:'PETICAO'},
+        {id:10,data_movimentacao:'2024-01-10',tipo:'Ajuizamento',descricao:'Reclamação trabalhista ajuizada. Pedidos: horas extras, FGTS, aviso prévio e multa 40%.',impacto:'NEUTRO',categoria:'DISTRIBUICAO'},
+      ]
+    },
+    { id:4, numero_cnj:'0011223-34.2021.8.26.0554', tribunal:'tjsp', grau:'G2', vara:'5ª Câmara de Direito Privado', comarca:'Santo André', classe_processual:'Apelação Cível', assunto:'Contrato Bancário — Juros Abusivos', valor_causa:34200, data_distribuicao:'2021-11-22', situacao:'Julgado', segredo_justica:false, ultima_movimentacao_data:'2023-06-10',
+      partes:[
+        {id:12,tipo_parte:'APELANTE',nome:'Maria Fernanda Costa',documento:'987.654.321-01',oab:null,polo:'ATIVO'},
+        {id:13,tipo_parte:'APELADO',nome:'Financeira Capital S.A.',documento:'44.555.666/0001-33',oab:null,polo:'PASSIVO'},
+        {id:14,tipo_parte:'ADVOGADO',nome:'Dr. Henrique Alves',documento:null,oab:'78901 SP',polo:'ATIVO'},
+      ],
+      movimentacoes:[
+        {id:11,data_movimentacao:'2023-06-10',tipo:'Acórdão Publicado',descricao:'Turma julgadora deu provimento parcial ao recurso, reduzindo os juros remuneratórios para 1,5% a.m.',impacto:'POSITIVO',categoria:'ACORDAO'},
+        {id:12,data_movimentacao:'2023-03-05',tipo:'Julgamento em Plenário',descricao:'Processo incluído em pauta e julgado pela 5ª Câmara de Direito Privado.',impacto:'NEUTRO',categoria:'JULGAMENTO'},
+        {id:13,data_movimentacao:'2021-11-22',tipo:'Distribuição do Recurso',descricao:'Apelação distribuída ao relator.',impacto:'NEUTRO',categoria:'DISTRIBUICAO'},
+      ]
+    },
+    { id:5, numero_cnj:'0067890-12.2024.8.19.0001', tribunal:'tjrj', grau:'G1', vara:'2ª Vara de Família', comarca:'Rio de Janeiro', classe_processual:'Ação de Alimentos', assunto:'Alimentos — Fixação', valor_causa:0, data_distribuicao:'2024-04-03', situacao:'Em Andamento', segredo_justica:true, ultima_movimentacao_data:'2024-11-20',
+      partes:[
+        {id:15,tipo_parte:'AUTOR',nome:'** Segredo de Justiça **',documento:null,oab:null,polo:'ATIVO'},
+        {id:16,tipo_parte:'RÉU',nome:'** Segredo de Justiça **',documento:null,oab:null,polo:'PASSIVO'},
+        {id:17,tipo_parte:'ADVOGADO',nome:'Dra. Juliana Neves',documento:null,oab:'203456 RJ',polo:'ATIVO'},
+      ],
+      movimentacoes:[
+        {id:14,data_movimentacao:'2024-11-20',tipo:'Despacho',descricao:'Intimadas as partes para manifestação em 15 dias.',impacto:'NEUTRO',categoria:'DESPACHO'},
+        {id:15,data_movimentacao:'2024-08-12',tipo:'Audiência de Conciliação',descricao:'Audiência realizada. Partes não chegaram a acordo. Prossegue instrução.',impacto:'NEGATIVO',categoria:'AUDIENCIA'},
+        {id:16,data_movimentacao:'2024-04-03',tipo:'Distribuição',descricao:'Ação de alimentos distribuída.',impacto:'NEUTRO',categoria:'DISTRIBUICAO'},
+      ]
+    },
+    { id:6, numero_cnj:'0033445-56.2023.1.00.0000', tribunal:'stj', grau:'ORIGINARIO', vara:'1ª Turma', comarca:null, classe_processual:'Recurso Especial', assunto:'Tributário — ICMS sobre TUST/TUSD', valor_causa:12500000, data_distribuicao:'2023-09-01', situacao:'Aguardando Julgamento', segredo_justica:false, ultima_movimentacao_data:'2024-12-05',
+      partes:[
+        {id:18,tipo_parte:'RECORRENTE',nome:'Petroquímica Nacional S.A.',documento:'11.222.333/0001-44',oab:null,polo:'ATIVO'},
+        {id:19,tipo_parte:'RECORRIDO',nome:'Estado de São Paulo — PGE',documento:null,oab:null,polo:'PASSIVO'},
+        {id:20,tipo_parte:'ADVOGADO',nome:'Dr. Roberto Siqueira',documento:null,oab:'12345 SP',polo:'ATIVO'},
+        {id:21,tipo_parte:'ADVOGADO',nome:'Dr. Carlos Alberto Reis',documento:null,oab:'98765 SP',polo:'PASSIVO'},
+      ],
+      movimentacoes:[
+        {id:17,data_movimentacao:'2024-12-05',tipo:'Pauta de Julgamento',descricao:'Processo incluído na pauta de julgamento da sessão de 18/02/2025.',impacto:'URGENTE',categoria:'PAUTA'},
+        {id:18,data_movimentacao:'2024-06-30',tipo:'Vista à PGE',descricao:'Processo em vista ao órgão ministerial para manifestação.',impacto:'NEUTRO',categoria:'DESPACHO'},
+        {id:19,data_movimentacao:'2023-09-01',tipo:'Distribuição',descricao:'REsp distribuído por sorteio ao Ministro Relator.',impacto:'NEUTRO',categoria:'DISTRIBUICAO'},
+      ]
+    },
+  ],
+  monitoramentos:[
+    {id:1,processo_id:1,ativo:true,notificar_email:'juridico@escritorio.com.br',webhook_url:null,ultima_verificacao:'2024-12-18T08:00:00',proxima_verificacao:'2024-12-19T02:00:00',criado_em:'2024-01-01'},
+    {id:2,processo_id:3,ativo:true,notificar_email:'labor@escritorio.com.br',webhook_url:'https://hooks.escritorio.com.br/alert',ultima_verificacao:'2024-12-18T08:00:00',proxima_verificacao:'2024-12-19T02:00:00',criado_em:'2024-02-15'},
+    {id:3,processo_id:6,ativo:true,notificar_email:'tributario@escritorio.com.br',webhook_url:null,ultima_verificacao:'2024-12-17T08:00:00',proxima_verificacao:'2024-12-18T02:00:00',criado_em:'2024-09-01'},
+    {id:4,processo_id:2,ativo:false,notificar_email:null,webhook_url:null,ultima_verificacao:'2024-10-30T08:00:00',proxima_verificacao:null,criado_em:'2023-01-10'},
+  ],
+  notificacoes:[
+    {id:1,processo_id:6,tipo:'NOVA_MOVIMENTACAO',resumo:'STJ incluiu REsp em pauta: julgamento marcado para 18/02/2025.',lida:false,criado_em:'2024-12-05T10:23:00'},
+    {id:2,processo_id:1,tipo:'NOVA_MOVIMENTACAO',resumo:'Tutela recursal deferida no processo da Construtora Horizonte.',lida:false,criado_em:'2024-12-18T14:05:00'},
+    {id:3,processo_id:3,tipo:'NOVA_MOVIMENTACAO',resumo:'Audiência trabalhista designada para 15/02/2025.',lida:true,criado_em:'2024-12-01T09:30:00'},
+  ],
+  prazos:[
+    {id:1,processo_id:1,tipo_prazo:'RECURSO',descricao:'Prazo para interposição de Recurso Especial',data_vencimento:'2025-01-25',cumprido:false,criado_em:'2024-12-18'},
+    {id:2,processo_id:3,tipo_prazo:'AUDIENCIA',descricao:'Audiência de instrução e julgamento',data_vencimento:'2025-02-15',cumprido:false,criado_em:'2024-12-01'},
+    {id:3,processo_id:6,tipo_prazo:'PAUTA',descricao:'Sessão de julgamento no STJ',data_vencimento:'2025-02-18',cumprido:false,criado_em:'2024-12-05'},
+    {id:4,processo_id:2,tipo_prazo:'MANIFESTACAO',descricao:'Manifestação sobre laudo pericial',data_vencimento:'2025-01-10',cumprido:false,criado_em:'2024-12-10'},
+  ],
+  activityDays: (() => {
+    const days = [];
+    const now = new Date('2024-12-18');
+    for(let i=13;i>=0;i--){
+      const d = new Date(now); d.setDate(d.getDate()-i);
+      days.push({
+        label: d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),
+        indexados: Math.floor(Math.random()*5),
+        movimentacoes: Math.floor(5+Math.random()*15),
+        alertas: Math.floor(Math.random()*3),
+      });
+    }
+    return days;
+  })(),
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// STATE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let state = {
+  demo: false,
+  page: 'overview',
+  sidebarCollapsed: false,
+  notifOpen: false,
+  processos: [],
+  monitoramentos: [],
+  notificacoes: [],
+  prazos: [],
+  charts: {},
+  procPage: 0,
+  procSearch: '',
+  currentProc: null,
+};
+const PS = 12; // page size
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// API
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function apiBase() { return (document.getElementById('api-url')?.value || 'http://127.0.0.1:8000').replace(/\/$/,''); }
+function apiKey()  { return document.getElementById('cfgKey')?.value || ''; }
+function apiHeaders() {
+  const h = {'Content-Type':'application/json'};
+  const k = apiKey(); if(k) h['X-API-Key'] = k;
+  return h;
+}
+async function apiFetch(path, opts={}) {
+  const r = await fetch(apiBase()+path, {headers:apiHeaders(),...opts});
+  if(!r.ok){ const e=await r.json().catch(()=>({detail:r.statusText})); throw new Error(e.detail||`HTTP ${r.status}`); }
+  return r.json();
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// HELPERS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+const fmt  = n => n!=null ? Number(n).toLocaleString('pt-BR') : '—';
+const fmtR = n => n!=null ? Number(n).toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) : '—';
+const fmtD = d => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
+const fmtDT= d => d ? new Date(d).toLocaleString('pt-BR') : '—';
+function icon(name,sz=14){
+  const icons={
+    file:`<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>`,
+    users:`<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>`,
+    activity:`<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>`,
+    bell:`<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>`,
+    clock:`<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>`,
+    eye:`<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`,
+    check:`<polyline points="20 6 9 17 4 12"/>`,
+    alert:`<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>`,
+    x:`<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>`,
+    chev:`<polyline points="9 18 15 12 9 6"/>`,
+  };
+  return `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${icons[name]||''}</svg>`;
+}
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function impactConf(imp){
+  const m={POSITIVO:{dot:'bg-emerald-400',cls:'imp-positivo'},NEGATIVO:{dot:'bg-red-400',cls:'imp-negativo'},URGENTE:{dot:'bg-amber-400',cls:'imp-urgente'},NEUTRO:{dot:'bg-indigo-400',cls:'imp-neutro'}};
+  return m[imp]||{dot:'bg-slate-500',cls:'imp-neutro'};
+}
+function cnj14(s){
+  const d=s.replace(/\D/g,'');
+  if(d.length===0)return s;
+  let r=d;
+  if(d.length>7) r=d.slice(0,7)+'-'+d.slice(7);
+  if(d.length>9) r=r.slice(0,10)+'.'+r.slice(10);
+  if(d.length>13)r=r.slice(0,15)+'.'+r.slice(15);
+  if(d.length>14)r=r.slice(0,17)+'.'+r.slice(17);
+  if(d.length>16)r=r.slice(0,20)+'.'+r.slice(20);
+  return r.slice(0,25);
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CLOCK
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+setInterval(()=>{ document.getElementById('clock').textContent=new Date().toLocaleTimeString('pt-BR'); },1000);
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SIDEBAR / LAYOUT
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function toggleSidebar(){
+  state.sidebarCollapsed=!state.sidebarCollapsed;
+  document.getElementById('sidebar').classList.toggle('collapsed',state.sidebarCollapsed);
+  document.getElementById('app').classList.toggle('collapsed',state.sidebarCollapsed);
+}
+function showPage(name){
+  state.page=name;
+  document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===name));
+  const labels={overview:'Overview',processos:'Processos',partes:'Partes & OAB',prazos:'Prazos',monitoramento:'Monitoramento',busca:'Buscar Processo',arquitetura:'Arquitetura do Sistema',apidocs:'API Docs'};
+  document.getElementById('breadcrumb').innerHTML=`<span class="text-[#3a5878]">Dashboard</span> <span class="mx-1.5 text-[#1a3050]">/</span> <span class="text-white">${labels[name]||name}</span>`;
+  renderPage();
+}
+function reconnect(){ bootstrap(); }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// NOTIFICATIONS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function toggleNotif(){
+  state.notifOpen=!state.notifOpen;
+  const drawer = document.getElementById('notifDrawer');
+  const backdrop = document.getElementById('notifBackdrop');
+  if(state.notifOpen){
+    drawer.classList.add('open');
+    backdrop.style.display = 'block';
+    renderNotifDrawer();
+  } else {
+    drawer.classList.remove('open');
+    backdrop.style.display = 'none';
+  }
+}
+function renderNotifDrawer(){
+  const notifs = state.notificacoes;
+  const unread = notifs.filter(n=>!n.lida).length;
+  const list=document.getElementById('notifList');
+  const badge=document.getElementById('notifBadge');
+  badge.classList.toggle('hidden',unread===0);
+  if(unread>0) badge.textContent=unread;
+
+  if(notifs.length===0){
+    list.innerHTML='<p class="text-xs text-[#3a5878] text-center py-8">Nenhuma notificação</p>';
+    return;
+  }
+  const typeConf={NOVA_MOVIMENTACAO:{icon:'activity',color:'text-indigo-400'},PRAZO_VENCENDO:{icon:'alert',color:'text-amber-400'}};
+  list.innerHTML=notifs.map((n,i)=>{
+    const tc=typeConf[n.tipo]||{icon:'bell',color:'text-slate-400'};
+    const proc=state.processos.find(p=>p.id===n.processo_id);
+    return `<div class="p-3 rounded-xl ${n.lida?'bg-transparent':'bg-[#0d1c30]'} border ${n.lida?'border-transparent':'border-[#0f2035]'} slide-r d${i+1}">
+      <div class="flex gap-2.5">
+        <div class="mt-0.5 ${tc.color}">${icon(tc.icon,13)}</div>
+        <div class="flex-1 min-w-0">
+          <p class="text-[11px] text-[#8aa8c8] leading-relaxed">${escHtml(n.resumo)}</p>
+          ${proc?`<p class="text-[10px] text-[#2a4060] mt-1 mono truncate">${proc.numero_cnj}</p>`:''}
+          <p class="text-[10px] text-[#1e3348] mt-1">${fmtDT(n.criado_em)}</p>
+        </div>
+        ${!n.lida?'<div class="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1 flex-shrink-0"></div>':''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// QUICK SEARCH
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function quickSearchFn(q){
+  const box=document.getElementById('quickResults');
+  if(!q||q.length<2){box.classList.add('hidden');return;}
+  const ql=q.toLowerCase();
+  const hits=state.processos.filter(p=>
+    p.numero_cnj.includes(q)||
+    p.tribunal.includes(ql)||
+    (p.comarca||'').toLowerCase().includes(ql)||
+    (p.classe_processual||'').toLowerCase().includes(ql)||
+    p.partes?.some(pt=>pt.nome.toLowerCase().includes(ql))
+  ).slice(0,5);
+  if(hits.length===0){box.classList.add('hidden');return;}
+  box.classList.remove('hidden');
+  box.innerHTML=hits.map(p=>`
+    <div class="flex items-center gap-3 px-3 py-2.5 hover:bg-[#0f2035] cursor-pointer transition-colors" onclick="openModal(${p.id});document.getElementById('quickSearch').value='';document.getElementById('quickResults').classList.add('hidden');">
+      <span class="badge badge-indigo text-[9px] uppercase">${p.tribunal}</span>
+      <div class="min-w-0">
+        <p class="text-xs text-white mono truncate">${p.numero_cnj}</p>
+        <p class="text-[10px] text-[#3a5878] truncate">${p.classe_processual||p.situacao||'—'}</p>
+      </div>
+    </div>`).join('');
+}
+document.addEventListener('click',e=>{
+  if(!document.getElementById('quickSearch').contains(e.target) && !document.getElementById('quickResults').contains(e.target))
+    document.getElementById('quickResults').classList.add('hidden');
+});
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// MODAL
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function openModal(procId){
+  const p = state.processos.find(x=>x.id===procId); if(!p) return;
+  state.currentProc=p;
+  document.getElementById('modalOverlay').classList.add('open');
+  document.body.style.overflow='hidden';
+  renderModalContent(p,'partes');
+}
+function closeModal(){
+  document.getElementById('modalOverlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+function renderModalContent(p,tab){
+  const tabs=[{k:'partes',label:'Partes & Advogados'},{k:'movimentacoes',label:`Movimentações (${(p.movimentacoes||[]).length})`},{k:'prazos',label:'Prazos'}];
+  const situacaoColor = p.situacao?.includes('Julgado')||p.situacao?.includes('Extinto') ? 'badge-slate' : p.situacao?.includes('Suspenso') ? 'badge-amber' : 'badge-green';
+  document.getElementById('modalBox').innerHTML=`
+    <!-- Header -->
+    <div class="p-6 border-b border-[#0f2035]">
+      <div class="flex items-start justify-between gap-4">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-2 flex-wrap">
+            <span class="badge badge-indigo uppercase">${escHtml(p.tribunal)}</span>
+            ${p.grau?`<span class="badge badge-slate">${escHtml(p.grau)}</span>`:''}
+            <span class="badge ${situacaoColor}">${escHtml(p.situacao||'Em andamento')}</span>
+            ${p.segredo_justica?'<span class="badge badge-amber">🔒 Segredo de Justiça</span>':''}
+          </div>
+          <p class="text-lg font-bold text-white mono tracking-wide">${escHtml(p.numero_cnj)}</p>
+          ${p.vara?`<p class="text-sm text-[#4a6080] mt-0.5">${escHtml(p.vara)}</p>`:''}
+        </div>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <div class="text-right">
+            <p class="text-[10px] text-[#2a4060]">Valor da Causa</p>
+            <p class="text-base font-bold text-white">${fmtR(p.valor_causa)}</p>
+          </div>
+          <button class="btn-icon" onclick="closeModal()">${icon('x',12)}</button>
+        </div>
+      </div>
+      <!-- Meta -->
+      <div class="grid grid-cols-3 gap-3 mt-4">
+        <div class="bg-[#060e1a] rounded-xl p-3">
+          <p class="text-[10px] text-[#2a4060] mb-1">Classe Processual</p>
+          <p class="text-xs text-white font-medium leading-snug">${escHtml(p.classe_processual||'—')}</p>
+        </div>
+        <div class="bg-[#060e1a] rounded-xl p-3">
+          <p class="text-[10px] text-[#2a4060] mb-1">Assunto</p>
+          <p class="text-xs text-white font-medium leading-snug">${escHtml(p.assunto||'—')}</p>
+        </div>
+        <div class="bg-[#060e1a] rounded-xl p-3">
+          <p class="text-[10px] text-[#2a4060] mb-1">Comarca · Distribuição</p>
+          <p class="text-xs text-white font-medium">${escHtml(p.comarca||'—')}</p>
+          <p class="text-[10px] text-[#2a4060] mt-0.5">${fmtD(p.data_distribuicao)}</p>
+        </div>
+      </div>
+    </div>
+    <!-- Tabs -->
+    <div class="px-6 border-b border-[#0f2035] flex gap-6">
+      ${tabs.map(t=>`<button class="tab-btn ${t.k===tab?'active':''}" onclick="renderModalContent(state.currentProc,'${t.k}')">${t.label}</button>`).join('')}
+    </div>
+    <!-- Tab content -->
+    <div class="p-6">
+      ${tab==='partes'?renderPartiesDuel(p.partes||[]):tab==='movimentacoes'?renderTimeline(p.movimentacoes||[]):renderPrazosModal(p)}
+    </div>`;
+}
+
+function renderPartiesDuel(partes){
+  const ativo   = partes.filter(p=>p.polo==='ATIVO'   && p.tipo_parte!=='ADVOGADO');
+  const passivo = partes.filter(p=>p.polo==='PASSIVO'  && p.tipo_parte!=='ADVOGADO');
+  const advAtivo= partes.filter(p=>p.tipo_parte==='ADVOGADO' && p.polo==='ATIVO');
+  const advPass = partes.filter(p=>p.tipo_parte==='ADVOGADO' && p.polo==='PASSIVO');
+  const outros  = partes.filter(p=>!['ATIVO','PASSIVO'].includes(p.polo) && p.tipo_parte!=='ADVOGADO');
+
+  const partyCard=(pt,cls,adv)=>`
+    <div class="party-col ${cls==='ativo'?'border-indigo-500/20':'border-red-500/15'}">
+      <div class="flex items-center gap-2 mb-3">
+        <div class="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 ${cls==='ativo'?'bg-indigo-600/20 text-indigo-400':'bg-red-600/15 text-red-400'}">
+          ${escHtml((pt.nome||'?').charAt(0))}
+        </div>
+        <div class="min-w-0">
+          <p class="text-xs font-bold text-white truncate">${escHtml(pt.nome)}</p>
+          <div class="flex gap-1 mt-0.5 flex-wrap">
+            <span class="badge ${cls==='ativo'?'polo-ativo':'polo-passivo'} text-[9px]">${escHtml(pt.tipo_parte)}</span>
+            ${pt.documento?`<span class="badge badge-slate text-[9px] mono">${escHtml(pt.documento)}</span>`:''}
+          </div>
+        </div>
+      </div>
+      ${adv.map(a=>`<div class="mt-2 bg-[#0a1828] rounded-lg p-2 flex items-center gap-2">
+        <div class="w-6 h-6 rounded-lg bg-amber-600/15 flex items-center justify-center flex-shrink-0">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fcd34d" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div class="min-w-0">
+          <p class="text-[10px] text-[#8aa8c8] truncate">${escHtml(a.nome)}</p>
+          <span class="badge polo-adv text-[9px]">OAB ${escHtml(a.oab||'—')}</span>
+        </div>
+      </div>`).join('')}
+    </div>`;
+
+  if(ativo.length===0 && passivo.length===0){
+    const all=partes.map(p=>`<div class="bg-[#060e1a] rounded-xl p-3 flex items-center gap-3">
+      <div class="w-8 h-8 rounded-xl bg-slate-700/30 flex items-center justify-center text-sm font-bold text-slate-400">${escHtml((p.nome||'?').charAt(0))}</div>
+      <div><p class="text-xs font-medium text-white">${escHtml(p.nome)}</p><span class="badge badge-slate text-[9px]">${escHtml(p.tipo_parte)}</span></div>
+    </div>`).join('');
+    return `<div class="grid grid-cols-2 gap-2">${all}</div>`;
+  }
+
+  return `
+    <div class="flex gap-4 items-stretch mb-4">
+      <div class="party-col border-indigo-500/20">
+        <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-indigo-400 inline-block"></span> Polo Ativo
+        </p>
+        ${ativo.map(p=>partyCard(p,'ativo',advAtivo.filter(a=>a.polo==='ATIVO'))).join('')}
+      </div>
+      <div class="party-vs">
+        <div class="flex flex-col items-center gap-1">
+          <div class="w-px flex-1 bg-gradient-to-b from-transparent via-[#1a3050] to-transparent"></div>
+          <div class="bg-[#0f1e30] border border-[#1a3050] rounded-full w-8 h-8 flex items-center justify-center text-[10px] font-black text-[#3a5878]">VS</div>
+          <div class="w-px flex-1 bg-gradient-to-b from-[#1a3050] via-[#1a3050] to-transparent"></div>
+        </div>
+      </div>
+      <div class="party-col border-red-500/15">
+        <p class="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span> Polo Passivo
+        </p>
+        ${passivo.map(p=>partyCard(p,'passivo',advPass.filter(a=>a.polo==='PASSIVO'))).join('')}
+      </div>
+    </div>
+    ${outros.length?`<div class="mt-2"><p class="text-[10px] text-[#2a4060] uppercase font-bold tracking-widest mb-2">Outros</p><div class="grid grid-cols-2 gap-2">${outros.map(p=>`<div class="bg-[#060e1a] rounded-xl p-3"><p class="text-xs text-white">${escHtml(p.nome)}</p><span class="badge polo-outros text-[9px]">${escHtml(p.tipo_parte)}</span></div>`).join('')}</div></div>`:''}`
+}
+
+function renderTimeline(movs){
+  if(!movs.length) return '<p class="text-xs text-[#3a5878] text-center py-8">Nenhuma movimentação</p>';
+  const sorted=[...movs].sort((a,b)=>new Date(b.data_movimentacao)-new Date(a.data_movimentacao));
+  return `<div class="relative pl-6 space-y-5"><div class="tl-line"></div>${sorted.map((m,i)=>{
+    const c=impactConf(m.impacto);
+    return `<div class="flex gap-3 slide-r d${Math.min(i+1,8)}">
+      <div class="tl-dot ${c.dot} flex-shrink-0"></div>
+      <div class="flex-1 pb-1">
+        <div class="flex items-center gap-2 flex-wrap mb-1">
+          <span class="text-xs font-semibold text-white">${escHtml(m.tipo||m.descricao?.slice(0,40)||'—')}</span>
+          ${m.impacto?`<span class="badge ${c.cls} text-[9px]">${m.impacto}</span>`:''}
+          ${m.categoria?`<span class="badge badge-slate text-[9px]">${m.categoria}</span>`:''}
+          <span class="text-[10px] text-[#2a4060] ml-auto">${fmtD(m.data_movimentacao)}</span>
+        </div>
+        <p class="text-xs text-[#5a7a9a] leading-relaxed">${escHtml(m.descricao||'')}</p>
+        ${m.complemento?`<p class="text-[10px] text-[#3a5070] mt-1 italic">${escHtml(m.complemento)}</p>`:''}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function renderPrazosModal(proc){
+  const prazos=state.prazos.filter(p=>p.processo_id===proc.id);
+  if(!prazos.length) return '<p class="text-xs text-[#3a5878] text-center py-8">Nenhum prazo registrado para este processo</p>';
+  return `<div class="space-y-3">${prazos.map(p=>{
+    const dias=Math.ceil((new Date(p.data_vencimento)-new Date())/86400000);
+    const urgente=dias<=7&&!p.cumprido;
+    return `<div class="bg-[#060e1a] border ${urgente?'border-amber-500/25':'border-[#0f2035]'} rounded-xl p-4 flex items-center gap-4">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${urgente?'bg-amber-600/15':'bg-[#0c1828]'}">
+        ${icon('clock',16)}
+      </div>
+      <div class="flex-1">
+        <p class="text-xs font-semibold text-white">${escHtml(p.descricao)}</p>
+        <div class="flex gap-2 mt-1"><span class="badge badge-slate text-[9px]">${escHtml(p.tipo_prazo)}</span></div>
+      </div>
+      <div class="text-right">
+        <p class="text-sm font-bold ${urgente?'text-amber-400':'text-white'}">${fmtD(p.data_vencimento)}</p>
+        <p class="text-[10px] ${urgente?'text-amber-400/70':'text-[#2a4060]'}">${p.cumprido?'✓ Cumprido':dias<0?'Vencido':dias===0?'Hoje':dias+' dias'}</p>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+// ── PAGES ────────────────────────
+function renderPage(){
+  destroyCharts();
+  const pc=document.getElementById('pageContent');
+  pc.className='flex-1 p-6 max-w-screen-2xl mx-auto w-full';
+  switch(state.page){
+    case 'overview':     renderOverview(); break;
+    case 'processos':    renderProcessos(); break;
+    case 'partes':       renderPartes(); break;
+    case 'prazos':       renderPrazosPage(); break;
+    case 'monitoramento':renderMonitoramento(); break;
+    case 'busca':        renderBusca(); break;
+    case 'arquitetura':  renderArquitetura(); break;
+    case 'apidocs':      renderApiDocs(); break;
+  }
+}
+
+// ── OVERVIEW ──────────────────────
+function renderOverview(){
+  const ps=state.processos;
+  const total=ps.length;
+  const tribunaisCounts={};
+  ps.forEach(p=>{tribunaisCounts[p.tribunal]=(tribunaisCounts[p.tribunal]||0)+1;});
+  const topTrib=Object.entries(tribunaisCounts).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const maxTrib=topTrib[0]?.[1]||1;
+  const totalPartes=ps.reduce((s,p)=>s+(p.partes?.length||0),0);
+  const totalMovs=ps.reduce((s,p)=>s+(p.movimentacoes?.length||0),0);
+  const totalMon=state.monitoramentos.filter(m=>m.ativo).length;
+  const totalNotif=state.notificacoes.filter(n=>!n.lida).length;
+  const totalPrazos=state.prazos.filter(p=>!p.cumprido).length;
+  const dias=DEMO.activityDays;
+
+  const statCards=[
+    {label:'Processos',value:fmt(total),sub:`${topTrib[0]?.[0]?.toUpperCase()||'—'} lidera`,icon:'file',color:'indigo',badge:'+12%',up:true},
+    {label:'Partes Cadastradas',value:fmt(totalPartes),sub:`~${Math.round(totalPartes/(total||1)*10)/10} por processo`,icon:'users',color:'violet',badge:'+8%',up:true},
+    {label:'Movimentações',value:fmt(totalMovs),sub:`~${Math.round(totalMovs/(total||1)*10)/10} por processo`,icon:'activity',color:'blue',badge:'+23%',up:true},
+    {label:'Notificações',value:fmt(totalNotif),sub:'não lidas',icon:'bell',color:'amber',badge:null},
+    {label:'Prazos Pendentes',value:fmt(totalPrazos),sub:'monitorados',icon:'clock',color:'red',badge:null},
+    {label:'Monitores Ativos',value:fmt(totalMon),sub:'em execução',icon:'eye',color:'green',badge:'+5%',up:true},
+  ];
+  const colorMap={indigo:'bg-indigo-600/15 text-indigo-400',violet:'bg-violet-600/15 text-violet-400',blue:'bg-blue-600/15 text-blue-400',amber:'bg-amber-600/15 text-amber-400',red:'bg-red-600/15 text-red-400',green:'bg-emerald-600/15 text-emerald-400'};
+
+  document.getElementById('pageContent').innerHTML=`
+  <!-- Stats -->
+  <div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-5">
+    ${statCards.map((s,i)=>`
+    <div class="stat-card fade-up d${i+1}">
+      <div class="flex items-center justify-between mb-3">
+        <div class="p-2 rounded-xl ${colorMap[s.color]}">${icon(s.icon,15)}</div>
+        ${s.badge?`<span class="badge ${s.up?'badge-up':'badge-down'}">${s.badge}</span>`:''}
+      </div>
+      <p class="text-2xl font-black text-white tracking-tight" style="animation:countUp .4s ${.05*i}s both;">${s.value}</p>
+      <p class="text-[11px] text-[#3a5878] mt-0.5">${s.label}</p>
+      <p class="text-[10px] text-[#1e3348] mt-0.5">${s.sub}</p>
+    </div>`).join('')}
+  </div>
+
+  <!-- Charts row -->
+  <div class="grid grid-cols-1 xl:grid-cols-5 gap-4 mb-4">
+    <!-- Activity Line Chart (3/5) -->
+    <div class="card p-5 xl:col-span-3 fade-up d2">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h3 class="text-sm font-bold text-white">Atividade — Últimos 14 dias</h3>
+          <p class="text-[11px] text-[#3a5878] mt-0.5">Indexações · Movimentações · Alertas</p>
+        </div>
+        <div class="flex gap-3 text-[10px]">
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-indigo-400"></span>Indexados</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>Movs</span>
+          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-400"></span>Alertas</span>
+        </div>
+      </div>
+      <div class="chart-wrap" style="height:180px"><canvas id="lineChart"></canvas></div>
+    </div>
+
+    <!-- Tribunais (2/5) -->
+    <div class="card p-5 xl:col-span-2 fade-up d3">
+      <h3 class="text-sm font-bold text-white mb-4">Por Tribunal</h3>
+      <div class="space-y-3">
+        ${topTrib.map(([t,n],i)=>`
+        <div class="slide-r d${i+1}">
+          <div class="flex justify-between mb-1.5">
+            <span class="text-[11px] text-[#4a6080] font-mono uppercase">${t}</span>
+            <span class="text-[11px] font-bold text-white">${n}</span>
+          </div>
+          <div class="prog-bar"><div class="prog-fill" style="--target-w:${Math.round(n/maxTrib*100)}%;width:${Math.round(n/maxTrib*100)}%;background:linear-gradient(90deg,#4f46e5,#7c3aed);animation-delay:${i*.05}s;"></div></div>
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom row -->
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-4">
+    <!-- Donut + impacto (1/3) -->
+    <div class="card p-5 fade-up d3">
+      <h3 class="text-sm font-bold text-white mb-4">Impacto das Movimentações</h3>
+      <div class="flex items-center gap-5">
+        <div class="relative flex-shrink-0" style="width:120px;height:120px;">
+          <canvas id="donutChart" width="120" height="120"></canvas>
+          <div class="absolute inset-0 flex flex-col items-center justify-center">
+            <p class="text-xl font-black text-white">${fmt(totalMovs)}</p>
+            <p class="text-[9px] text-[#2a4060]">movs</p>
+          </div>
+        </div>
+        <div class="space-y-2.5 flex-1">
+          ${[['POSITIVO','bg-emerald-400','imp-positivo','38%'],['NEGATIVO','bg-red-400','imp-negativo','12%'],['NEUTRO','bg-indigo-400','imp-neutro','45%'],['URGENTE','bg-amber-400','imp-urgente','5%']].map(([l,dot,cls,p])=>`
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full ${dot} flex-shrink-0"></div>
+            <div class="flex-1">
+              <div class="flex justify-between">
+                <span class="text-[10px] text-[#3a5878]">${l}</span>
+                <span class="text-[10px] font-bold text-white">${p}</span>
+              </div>
+              <div class="prog-bar mt-1" style="height:3px;"><div class="prog-fill" style="--target-w:${p};width:${p};background:${dot.includes('emerald')?'#10b981':dot.includes('red')?'#ef4444':dot.includes('indigo')?'#6366f1':'#f59e0b'};"></div></div>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- Processos recentes (2/3) -->
+    <div class="card xl:col-span-2 fade-up d4">
+      <div class="p-5 border-b border-[#0f2035] flex items-center justify-between">
+        <h3 class="text-sm font-bold text-white">Processos Recentes</h3>
+        <button class="btn-ghost" onclick="showPage('processos')">Ver todos ${icon('chev',11)}</button>
+      </div>
+      <div class="divide-y divide-[#0a1828]">
+        ${ps.slice(0,5).map((p,i)=>{
+          const lastMov=p.movimentacoes?.[0];
+          const sitColor=p.situacao?.includes('Julgado')?'badge-slate':p.situacao?.includes('Suspenso')?'badge-amber':'badge-green';
+          return `<div class="flex items-center gap-3 px-5 py-3.5 hover:bg-[#0a1828] cursor-pointer transition-colors slide-r d${i+1}" onclick="openModal(${p.id})">
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center text-[10px] font-black text-indigo-400 bg-indigo-600/10 flex-shrink-0">${(p.tribunal||'?').slice(0,2).toUpperCase()}</div>
+            <div class="flex-1 min-w-0">
+              <p class="text-xs font-semibold text-white mono truncate">${p.numero_cnj}</p>
+              <p class="text-[10px] text-[#3a5878] truncate">${p.classe_processual||'—'} · ${p.comarca||'—'}</p>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <span class="badge ${sitColor} text-[9px]">${p.situacao||'Em andamento'}</span>
+              <p class="text-[10px] text-[#1e3348] mt-1">${fmtD(p.ultima_movimentacao_data)}</p>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+  </div>`;
+
+  // ── Line chart ──
+  setTimeout(()=>{
+    const ctx=document.getElementById('lineChart');
+    if(!ctx) return;
+    const labels=dias.map(d=>d.label);
+    state.charts.line=new Chart(ctx,{
+      type:'line',
+      data:{
+        labels,
+        datasets:[
+          {label:'Indexados',data:dias.map(d=>d.indexados),borderColor:'#6366f1',backgroundColor:'rgba(99,102,241,.08)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#6366f1',borderWidth:2},
+          {label:'Movimentações',data:dias.map(d=>d.movimentacoes),borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.06)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#10b981',borderWidth:2},
+          {label:'Alertas',data:dias.map(d=>d.alertas),borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.06)',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:'#f59e0b',borderWidth:2},
+        ]
+      },
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false,backgroundColor:'#0a1220',borderColor:'#1a3050',borderWidth:1,titleColor:'#8aa8c8',bodyColor:'#5a7a9a',callbacks:{label:c=>`  ${c.dataset.label}: ${c.raw}`}}},
+        scales:{
+          x:{grid:{color:'#0a1828'},ticks:{color:'#2a4060',font:{size:9}}},
+          y:{grid:{color:'#0a1828'},ticks:{color:'#2a4060',font:{size:9}},beginAtZero:true},
+        }
+      }
+    });
+    // donut
+    const dctx=document.getElementById('donutChart');
+    if(dctx) state.charts.donut=new Chart(dctx,{
+      type:'doughnut',
+      data:{datasets:[{data:[38,12,45,5],backgroundColor:['#10b981','#ef4444','#6366f1','#f59e0b'],borderWidth:0,hoverOffset:4}]},
+      options:{cutout:'72%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.raw}%`}}},responsive:false}
+    });
+  },50);
+}
+
+// ── PROCESSOS ─────────────────────
+function renderProcessos(){
+  const search=state.procSearch.toLowerCase();
+  const filtered=state.processos.filter(p=>
+    !search||p.numero_cnj.includes(search)||
+    (p.tribunal||'').includes(search)||
+    (p.classe_processual||'').toLowerCase().includes(search)||
+    (p.comarca||'').toLowerCase().includes(search)||
+    p.partes?.some(pt=>pt.nome.toLowerCase().includes(search))
+  );
+  const pages=Math.ceil(filtered.length/PS)||1;
+  const page=Math.min(state.procPage,pages-1);
+  const slice=filtered.slice(page*PS,(page+1)*PS);
+
+  document.getElementById('pageContent').innerHTML=`
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-5 fade-up">
+    <div>
+      <h2 class="text-lg font-black text-white">Processos</h2>
+      <p class="text-[12px] text-[#3a5878] mt-0.5">${fmt(filtered.length)} processo${filtered.length!==1?'s':''} encontrado${filtered.length!==1?'s':''}</p>
+    </div>
+    <button class="btn-primary" onclick="showPage('busca')">+ Buscar na API</button>
+  </div>
+
+  <!-- Filters -->
+  <div class="flex gap-2 mb-4 fade-up d2">
+    <div class="relative flex-1 max-w-sm">
+      <input class="inp text-sm" style="padding-left:34px;" placeholder="Buscar processo, parte, comarca..." value="${escHtml(state.procSearch)}" oninput="state.procSearch=this.value;state.procPage=0;renderPage();" />
+      <span class="absolute left-3 top-1/2 -translate-y-1/2 text-[#2a4060]">${icon('',12)}<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+    </div>
+    <select class="inp text-sm" style="width:auto;padding:9px 14px;" onchange="state.procSearch=this.value;state.procPage=0;renderPage();">
+      <option value="">Todos tribunais</option>
+      ${[...new Set(state.processos.map(p=>p.tribunal))].sort().map(t=>`<option value="${t}" ${state.procSearch===t?'selected':''}>${t.toUpperCase()}</option>`).join('')}
+    </select>
+    <button class="btn-icon" onclick="state.procSearch='';state.procPage=0;renderPage();" title="Limpar">${icon('x',12)}</button>
+  </div>
+
+  <!-- Cards grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 mb-4">
+    ${slice.map((p,i)=>{
+      const sitColor=p.situacao?.includes('Julgado')?'badge-slate':p.situacao?.includes('Suspenso')?'badge-amber':'badge-green';
+      const lastMov=p.movimentacoes?.slice().sort((a,b)=>new Date(b.data_movimentacao)-new Date(a.data_movimentacao))[0];
+      const adv=p.partes?.filter(pt=>pt.tipo_parte==='ADVOGADO').slice(0,2)||[];
+      return `<div class="proc-card fade-up d${Math.min(i+1,8)}" onclick="openModal(${p.id})">
+        <div class="flex items-start justify-between gap-2 mb-3">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="badge badge-indigo text-[9px] mono uppercase">${escHtml(p.tribunal)}</span>
+            <span class="badge ${sitColor} text-[9px]">${escHtml(p.situacao||'Em andamento')}</span>
+            ${p.segredo_justica?'<span class="badge badge-amber text-[9px]">🔒</span>':''}
+          </div>
+          ${p.valor_causa?`<span class="text-[10px] text-[#3a5878] font-semibold flex-shrink-0">${fmtR(p.valor_causa)}</span>`:''}
+        </div>
+        <p class="text-xs font-bold text-white mono mb-1 leading-snug">${escHtml(p.numero_cnj)}</p>
+        <p class="text-[11px] text-[#3a5878] truncate mb-3">${escHtml(p.classe_processual||'—')} · ${escHtml(p.comarca||'—')}</p>
+        ${lastMov?`<div class="bg-[#060e1a] rounded-lg p-2.5 mb-3">
+          <div class="flex items-center justify-between mb-1">
+            <span class="text-[9px] font-bold text-[#2a4060] uppercase tracking-wide">Última movimentação</span>
+            <span class="text-[9px] text-[#2a4060]">${fmtD(lastMov.data_movimentacao)}</span>
+          </div>
+          <p class="text-[10px] text-[#5a7a9a] leading-snug truncate">${escHtml(lastMov.tipo||lastMov.descricao?.slice(0,60)||'—')}</p>
+        </div>`:''}
+        ${adv.length?`<div class="flex gap-1 flex-wrap">${adv.map(a=>`<span class="badge polo-adv text-[9px]">⚖ ${escHtml(a.nome.split(' ').slice(0,2).join(' '))}</span>`).join('')}</div>`:''}
+      </div>`;
+    }).join('')}
+    ${slice.length===0?`<div class="col-span-3 text-center py-16 text-[#2a4060]"><p class="text-4xl mb-3">🔍</p><p class="text-sm">Nenhum processo encontrado</p><p class="text-xs mt-1">Tente outros termos ou busque na API</p></div>`:''}
+  </div>
+
+  <!-- Pagination -->
+  <div class="flex items-center justify-between fade-up">
+    <p class="text-xs text-[#2a4060]">Mostrando ${page*PS+1}–${Math.min((page+1)*PS,filtered.length)} de ${filtered.length}</p>
+    <div class="flex gap-2">
+      <button class="btn-ghost" onclick="state.procPage=Math.max(0,state.procPage-1);renderPage();" ${page===0?'disabled':''}>← Anterior</button>
+      <span class="btn-ghost text-[#3a5878] pointer-events-none">Pág ${page+1} / ${pages}</span>
+      <button class="btn-ghost" onclick="state.procPage=state.procPage+1;renderPage();" ${page>=pages-1?'disabled':''}>Próxima →</button>
+    </div>
+  </div>`;
+}
+
+// ── PARTES ─────────────────────────
+function renderPartes(){
+  const allPartes=state.processos.flatMap(p=>(p.partes||[]).map(pt=>({...pt,proc:p})));
+  const advs=allPartes.filter(pt=>pt.tipo_parte==='ADVOGADO');
+  const autores=allPartes.filter(pt=>pt.polo==='ATIVO'&&pt.tipo_parte!=='ADVOGADO');
+  const reus=allPartes.filter(pt=>pt.polo==='PASSIVO'&&pt.tipo_parte!=='ADVOGADO');
+
+  document.getElementById('pageContent').innerHTML=`
+  <div class="flex items-center justify-between mb-5 fade-up">
+    <div>
+      <h2 class="text-lg font-black text-white">Partes & OAB</h2>
+      <p class="text-[12px] text-[#3a5878] mt-0.5">${fmt(allPartes.length)} partes em ${fmt(state.processos.length)} processos</p>
+    </div>
+  </div>
+
+  <!-- Busca por OAB/nome -->
+  <div class="card p-5 mb-4 fade-up d2">
+    <h3 class="text-sm font-bold text-white mb-3">Buscar por OAB ou Nome</h3>
+    <div class="flex gap-2">
+      <input id="oabInp" class="inp flex-1 text-sm" placeholder="OAB: 361329 SP  —  ou nome da parte" />
+      <button class="btn-primary" onclick="buscarParteLocal()">Buscar</button>
+    </div>
+    <div id="oabResult" class="mt-3"></div>
+  </div>
+
+  <!-- Stats row -->
+  <div class="grid grid-cols-3 gap-3 mb-4">
+    ${[
+      {label:'Autores / Requerentes',value:fmt(autores.length),color:'indigo',dot:'bg-indigo-400'},
+      {label:'Réus / Requeridos',value:fmt(reus.length),color:'red',dot:'bg-red-400'},
+      {label:'Advogados',value:fmt(advs.length),color:'amber',dot:'bg-amber-400'},
+    ].map((s,i)=>`<div class="stat-card fade-up d${i+1}">
+      <div class="flex items-center gap-2 mb-2"><div class="w-2.5 h-2.5 rounded-full ${s.dot}"></div><p class="text-[11px] text-[#3a5878]">${s.label}</p></div>
+      <p class="text-3xl font-black text-white">${s.value}</p>
+    </div>`).join('')}
+  </div>
+
+  <!-- Advogados list -->
+  <div class="card fade-up d3">
+    <div class="p-5 border-b border-[#0f2035]"><h3 class="text-sm font-bold text-white">Advogados Cadastrados</h3></div>
+    <div class="divide-y divide-[#080d16]">
+      ${advs.slice(0,20).map((a,i)=>`
+      <div class="flex items-center gap-3 px-5 py-3.5 hover:bg-[#0a1828] cursor-pointer transition-colors slide-r d${Math.min(i+1,8)}" onclick="openModal(${a.proc.id})">
+        <div class="w-8 h-8 rounded-xl bg-amber-600/15 flex items-center justify-center text-xs font-bold text-amber-400 flex-shrink-0">${(a.nome||'?').charAt(0)}</div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs font-semibold text-white">${escHtml(a.nome)}</p>
+          <div class="flex gap-2 mt-0.5 flex-wrap">
+            ${a.oab?`<span class="badge polo-adv text-[9px] mono">OAB ${escHtml(a.oab)}</span>`:''}
+            <span class="badge ${a.polo==='ATIVO'?'polo-ativo':'polo-passivo'} text-[9px]">${escHtml(a.polo||'—')}</span>
+          </div>
+        </div>
+        <div class="text-right">
+          <p class="text-[10px] text-[#3a5878] mono truncate max-w-40">${escHtml(a.proc.numero_cnj)}</p>
+          <p class="text-[9px] text-[#1e3348]">${escHtml(a.proc.tribunal?.toUpperCase()||'')}</p>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function buscarParteLocal(){
+  const q=(document.getElementById('oabInp')?.value||'').trim().toLowerCase();
+  const res=document.getElementById('oabResult');
+  if(!q){res.innerHTML='';return;}
+  const hits=state.processos.flatMap(p=>(p.partes||[]).filter(pt=>pt.nome.toLowerCase().includes(q)||(pt.oab||'').toLowerCase().includes(q)).map(pt=>({...pt,proc:p})));
+  if(!hits.length){res.innerHTML='<p class="text-xs text-[#3a5878]">Nenhuma parte encontrada</p>';return;}
+  res.innerHTML=`<div class="space-y-2">${hits.slice(0,10).map(h=>`
+    <div class="bg-[#060e1a] rounded-xl p-3 flex items-center gap-3 cursor-pointer hover:bg-[#0a1828] transition-colors" onclick="openModal(${h.proc.id})">
+      <div class="w-8 h-8 rounded-xl ${h.tipo_parte==='ADVOGADO'?'bg-amber-600/15 text-amber-400':(h.polo==='ATIVO'?'bg-indigo-600/15 text-indigo-400':'bg-slate-600/15 text-slate-400')} flex items-center justify-center font-bold text-xs flex-shrink-0">${h.nome.charAt(0)}</div>
+      <div class="flex-1 min-w-0">
+        <p class="text-xs font-semibold text-white">${escHtml(h.nome)}</p>
+        <div class="flex gap-1.5 mt-0.5 flex-wrap">
+          ${h.oab?`<span class="badge polo-adv text-[9px]">OAB ${escHtml(h.oab)}</span>`:''}
+          <span class="badge badge-slate text-[9px]">${escHtml(h.tipo_parte)}</span>
+        </div>
+      </div>
+      <p class="text-[10px] text-[#3a5878] mono">${escHtml(h.proc.numero_cnj)}</p>
+    </div>`).join('')}</div>`;
+}
+
+// ── PRAZOS ────────────────────────
+function renderPrazosPage(){
+  const prazos=state.prazos.sort((a,b)=>new Date(a.data_vencimento)-new Date(b.data_vencimento));
+  document.getElementById('pageContent').innerHTML=`
+  <div class="flex items-center justify-between mb-5 fade-up">
+    <div>
+      <h2 class="text-lg font-black text-white">Prazos Processuais</h2>
+      <p class="text-[12px] text-[#3a5878] mt-0.5">${prazos.filter(p=>!p.cumprido).length} pendentes · ${prazos.filter(p=>p.cumprido).length} cumpridos</p>
+    </div>
+  </div>
+  <div class="space-y-3">
+    ${prazos.map((p,i)=>{
+      const dias=Math.ceil((new Date(p.data_vencimento)-new Date('2024-12-18'))/86400000);
+      const proc=state.processos.find(x=>x.id===p.processo_id);
+      const urgente=dias<=7&&!p.cumprido;
+      const vencido=dias<0&&!p.cumprido;
+      return `<div class="card p-4 flex items-center gap-4 fade-up d${Math.min(i+1,8)} ${urgente?'glow-amber':vencido?'glow-red':''}" style="border-color:${urgente?'rgba(245,158,11,.25)':vencido?'rgba(239,68,68,.2)':''}">
+        <div class="w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${urgente?'bg-amber-600/15':vencido?'bg-red-600/15':'bg-[#0a1828]'}">
+          <p class="text-lg font-black ${urgente?'text-amber-400':vencido?'text-red-400':'text-white'}">${new Date(p.data_vencimento).getDate()}</p>
+          <p class="text-[8px] ${urgente?'text-amber-400/70':vencido?'text-red-400/70':'text-[#2a4060]'} uppercase">${new Date(p.data_vencimento).toLocaleDateString('pt-BR',{month:'short'})}</p>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="badge ${urgente?'badge-amber':vencido?'badge-red':'badge-slate'} text-[9px]">${p.tipo_prazo}</span>
+            ${urgente?'<span class="badge badge-amber text-[9px]">⚠ Urgente</span>':vencido?'<span class="badge badge-red text-[9px]">Vencido</span>':p.cumprido?'<span class="badge badge-green text-[9px]">✓ Cumprido</span>':''}
+          </div>
+          <p class="text-xs font-semibold text-white">${escHtml(p.descricao)}</p>
+          ${proc?`<p class="text-[10px] text-[#3a5878] mono mt-0.5 truncate">${escHtml(proc.numero_cnj)} · ${escHtml(proc.tribunal?.toUpperCase())}</p>`:''}
+        </div>
+        <div class="text-right flex-shrink-0">
+          <p class="text-base font-bold ${urgente?'text-amber-400':vencido?'text-red-400':'text-white'}">${p.cumprido?'✓':dias===0?'Hoje':vencido?`${Math.abs(dias)}d atrás`:`em ${dias}d`}</p>
+          <p class="text-[10px] text-[#2a4060]">${fmtD(p.data_vencimento)}</p>
+          ${proc?`<button class="text-[10px] text-indigo-400 hover:text-indigo-300 mt-1" onclick="openModal(${proc.id})">Ver processo</button>`:''}
+        </div>
+      </div>`;
+    }).join('')}
+    ${prazos.length===0?`<div class="text-center py-16 text-[#2a4060]"><p class="text-4xl mb-3">📅</p><p class="text-sm">Nenhum prazo registrado</p></div>`:''}
+  </div>`;
+}
+
+// ── MONITORAMENTO ──────────────────
+function renderMonitoramento(){
+  const mons=state.monitoramentos;
+  document.getElementById('pageContent').innerHTML=`
+  <div class="flex items-center justify-between mb-5 fade-up">
+    <div>
+      <h2 class="text-lg font-black text-white">Monitoramento</h2>
+      <p class="text-[12px] text-[#3a5878] mt-0.5">${mons.filter(m=>m.ativo).length} ativos · ${mons.filter(m=>!m.ativo).length} inativos</p>
+    </div>
+  </div>
+  <div class="space-y-3">
+    ${mons.map((m,i)=>{
+      const proc=state.processos.find(p=>p.id===m.processo_id);
+      return `<div class="card p-5 fade-up d${Math.min(i+1,6)}">
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${m.ativo?'bg-emerald-600/15':'bg-[#0a1828]'}">
+            <div class="w-2.5 h-2.5 rounded-full ${m.ativo?'bg-emerald-400 animate-pulse':'bg-[#2a4060]'}"></div>
+          </div>
+          <div class="flex-1 min-w-0">
+            ${proc?`<p class="text-xs font-bold text-white mono truncate">${escHtml(proc.numero_cnj)}</p>
+            <p class="text-[11px] text-[#3a5878] truncate">${escHtml(proc.classe_processual||'—')} · ${escHtml(proc.tribunal?.toUpperCase()||'')}</p>`:
+            `<p class="text-xs text-[#3a5878]">Processo #${m.processo_id}</p>`}
+          </div>
+          <span class="badge ${m.ativo?'badge-green':'badge-slate'} text-[9px]">${m.ativo?'Ativo':'Inativo'}</span>
+        </div>
+        <div class="grid grid-cols-3 gap-3 mt-4">
+          <div class="bg-[#060e1a] rounded-xl p-3">
+            <p class="text-[9px] text-[#1e3348] uppercase mb-1">Última verificação</p>
+            <p class="text-[11px] text-white">${fmtD(m.ultima_verificacao)}</p>
+          </div>
+          <div class="bg-[#060e1a] rounded-xl p-3">
+            <p class="text-[9px] text-[#1e3348] uppercase mb-1">Próxima verificação</p>
+            <p class="text-[11px] text-white">${m.proxima_verificacao?fmtD(m.proxima_verificacao):'—'}</p>
+          </div>
+          <div class="bg-[#060e1a] rounded-xl p-3">
+            <p class="text-[9px] text-[#1e3348] uppercase mb-1">Canais</p>
+            <div class="flex gap-1 flex-wrap">
+              ${m.notificar_email?`<span class="badge badge-indigo text-[9px]">✉ E-mail</span>`:''}
+              ${m.webhook_url?`<span class="badge badge-violet text-[9px]">🔗 Webhook</span>`:''}
+              ${!m.notificar_email&&!m.webhook_url?'<span class="text-[10px] text-[#2a4060]">—</span>':''}
+            </div>
+          </div>
+        </div>
+        ${m.notificar_email?`<p class="text-[10px] text-[#2a4060] mt-2 mono">${escHtml(m.notificar_email)}</p>`:''}
+      </div>`;
+    }).join('')}
+    ${mons.length===0?`<div class="text-center py-16 text-[#2a4060]"><p class="text-4xl mb-3">👁</p><p class="text-sm">Nenhum monitoramento configurado</p></div>`:''}
+  </div>`;
+}
+
+// ── BUSCA ────────────────────────
+function renderBusca(){
+  document.getElementById('pageContent').innerHTML=`
+  <div class="max-w-2xl mx-auto">
+    <div class="mb-6 fade-up">
+      <h2 class="text-lg font-black text-white">Buscar Processo</h2>
+      <p class="text-[12px] text-[#3a5878] mt-0.5">Consulta o DataJud (CNJ) e tribunais em tempo real</p>
+    </div>
+
+    <!-- CNJ Search -->
+    <div class="card p-5 mb-4 fade-up d2">
+      <h3 class="text-sm font-bold text-white mb-1">Por Número CNJ</h3>
+      <p class="text-[11px] text-[#3a5878] mb-3">Formato: 0001234-56.2024.8.26.0001</p>
+      <div class="space-y-2">
+        <input id="cnjInp" class="inp mono-inp text-sm" placeholder="0000000-00.0000.0.00.0000" oninput="this.value=cnj14(this.value)" onkeydown="if(event.key==='Enter')executarBusca()" />
+        <div class="flex gap-2">
+          <select id="tribunalSel" class="inp text-sm flex-1">
+            <option value="">Selecione o tribunal...</option>
+            ${['tjsp','tjrj','tjmg','tjrs','tjpr','trf1','trf2','trf3','trf4','trf5','trf6','trt2','trt15','trt4','stj','stf','tst'].map(t=>`<option value="${t}">${t.toUpperCase()}</option>`).join('')}
+          </select>
+          <button class="btn-primary" onclick="executarBusca()" id="btnBuscar">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Buscar na API
+          </button>
+        </div>
+        <label class="flex items-center gap-2 text-xs text-[#3a5878] cursor-pointer">
+          <input type="checkbox" id="useAI" checked class="accent-indigo-500" /> Usar Claude AI Parser
+        </label>
+      </div>
+      <div id="buscaStatus" class="hidden mt-3 flex items-center gap-2 text-xs text-[#5a7a9a]">
+        <div class="spinner"></div><span id="buscaStatusTxt">Buscando...</span>
+      </div>
+      <div id="buscaError" class="hidden mt-3 p-3 bg-red-950/30 border border-red-800/30 rounded-xl text-xs text-red-400"></div>
+    </div>
+
+    <!-- OAB Search -->
+    <div class="card p-5 mb-4 fade-up d3">
+      <h3 class="text-sm font-bold text-white mb-1">Por Número OAB</h3>
+      <p class="text-[11px] text-[#3a5878] mb-3">Busca em 90+ tribunais simultaneamente</p>
+      <div class="flex gap-2">
+        <input id="oabSearchInp" class="inp text-sm flex-1 mono-inp" placeholder="361329 SP" onkeydown="if(event.key==='Enter')executarBuscaOAB()" />
+        <button class="btn-primary" onclick="executarBuscaOAB()">Buscar OAB</button>
+      </div>
+      <div id="oabStatus" class="hidden mt-3 flex items-center gap-2 text-xs text-[#5a7a9a]">
+        <div class="spinner"></div><span>Consultando tribunais...</span>
+      </div>
+    </div>
+
+    <!-- Result -->
+    <div id="buscaResult" class="fade-up d4"></div>
+
+    <!-- Demo hint -->
+    ${state.demo?`<div class="card p-4 border-amber-500/15 mt-4 fade-up d5" style="border-color:rgba(245,158,11,.15)">
+      <div class="flex gap-3">
+        <span class="text-amber-400 mt-0.5">${icon('alert',14)}</span>
+        <div>
+          <p class="text-xs font-semibold text-amber-300">Modo Demo ativo</p>
+          <p class="text-[11px] text-[#5a7a9a] mt-0.5">A busca real requer a API rodando em <span class="mono text-amber-400">${apiBase()}</span>. Configure a URL e API Key na barra lateral.</p>
+        </div>
+      </div>
+    </div>`:''}
+  </div>`;
+}
+
+async function executarBusca(){
+  const cnj=document.getElementById('cnjInp')?.value.trim();
+  const tribunal=document.getElementById('tribunalSel')?.value;
+  const useAI=document.getElementById('useAI')?.checked;
+  const errEl=document.getElementById('buscaError');
+  const statusEl=document.getElementById('buscaStatus');
+  const resultEl=document.getElementById('buscaResult');
+
+  errEl.classList.add('hidden'); resultEl.innerHTML='';
+  if(!cnj){errEl.textContent='⚠ Informe o número CNJ'; errEl.classList.remove('hidden'); return;}
+  if(!tribunal){errEl.textContent='⚠ Selecione o tribunal'; errEl.classList.remove('hidden'); return;}
+
+  statusEl.classList.remove('hidden');
+  document.getElementById('buscaStatusTxt').textContent='Consultando '+tribunal.toUpperCase()+'...';
+  document.getElementById('btnBuscar').disabled=true;
+
+  try{
+    const data=await apiFetch('/api/integracao/processo',{method:'POST',body:JSON.stringify({numero_cnj:cnj,tribunal,webhook_url:null})});
+    statusEl.classList.add('hidden');
+    document.getElementById('btnBuscar').disabled=false;
+    // Add to state and open modal
+    const exists=state.processos.find(p=>p.numero_cnj===data.numero_cnj);
+    if(!exists) state.processos.unshift(data);
+    else Object.assign(exists,data);
+    resultEl.innerHTML=`<div class="card p-4 border-emerald-500/15 glow-green"><p class="text-xs font-bold text-emerald-400 mb-2">✓ Processo encontrado e indexado</p><p class="text-xs text-white mono">${escHtml(data.numero_cnj)}</p><button class="btn-ghost mt-3 w-full justify-center" onclick="openModal(${data.id})">Ver detalhes completos</button></div>`;
+    updateNavBadges();
+  }catch(e){
+    statusEl.classList.add('hidden');
+    document.getElementById('btnBuscar').disabled=false;
+    errEl.textContent='⚠ '+e.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function executarBuscaOAB(){
+  const oab=document.getElementById('oabSearchInp')?.value.trim();
+  const statusEl=document.getElementById('oabStatus');
+  if(!oab){return;}
+  statusEl.classList.remove('hidden');
+  try{
+    const data=await apiFetch('/api/integracao/oab',{method:'POST',body:JSON.stringify({numero_oab:oab.split('/')[0], uf_oab:oab.split('/')[1]||'SP', nome_advogado:''})});
+    statusEl.classList.add('hidden');
+    const items=data.processos||[];
+    document.getElementById('buscaResult').innerHTML=`<div class="card"><div class="p-4 border-b border-[#0f2035]"><p class="text-sm font-bold text-white">${items.length} processos encontrados para OAB ${escHtml(oab)}</p></div><div class="divide-y divide-[#080d16]">${items.slice(0,15).map(p=>`<div class="flex items-center gap-3 px-4 py-3 hover:bg-[#0a1828] cursor-pointer" onclick="openModal(${p.id})"><span class="badge badge-indigo text-[9px]">${p.tribunal}</span><p class="text-xs text-white mono flex-1 truncate">${p.numero_cnj}</p><p class="text-[10px] text-[#3a5878]">${p.situacao||'—'}</p></div>`).join('')}</div></div>`;
+  }catch(e){
+    statusEl.classList.add('hidden');
+    document.getElementById('buscaResult').innerHTML=`<div class="p-3 bg-red-950/30 border border-red-800/30 rounded-xl text-xs text-red-400">⚠ ${escHtml(e.message)}</div>`;
+  }
+}
+
+// ── ARQUITETURA ────────────────────
+function renderArquitetura(){
+  document.getElementById('pageContent').innerHTML=`
+  <div class="mb-6 fade-up">
+    <h2 class="text-lg font-black text-white">Arquitetura do Sistema</h2>
+    <p class="text-[12px] text-[#3a5878] mt-0.5">Fluxo completo de dados · da requisição à persistência</p>
+  </div>
+
+  <!-- Main Flow -->
+  <div class="card p-6 mb-4 fade-up d2">
+    <div class="flex items-stretch gap-0">
+      ${[
+        {title:'Entradas',color:'#6366f1',border:'border-indigo-500/20',bg:'bg-indigo-600/10',items:['Número CNJ','OAB / Documento','POST /processos/buscar','GET /partes/buscar']},
+        null,
+        {title:'Crawlers',color:'#10b981',border:'border-emerald-500/20',bg:'bg-emerald-600/10',items:['DataJud CNJ ✓','TJSP · TJRJ','TRF · TRT','STJ · STF · TST','90+ tribunais']},
+        null,
+        {title:'Parser IA',color:'#8b5cf6',border:'border-violet-500/20',bg:'bg-violet-600/10',items:['Claude 3.5 Sonnet','Extração NLP','Normalização','Classificação']},
+        null,
+        {title:'PostgreSQL',color:'#3b82f6',border:'border-blue-500/20',bg:'bg-blue-600/10',items:['processos','partes','movimentacoes','prazos · notifs']},
+        null,
+        {title:'Saídas',color:'#22d3ee',border:'border-cyan-500/20',bg:'bg-cyan-600/10',items:['API REST (25+ rotas)','Webhooks','E-mail automático','Scheduler diário']},
+      ].map((n,i)=>{
+        if(n===null) return `<div class="flex items-center px-1"><svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M15 6l6 6-6 6" stroke="#1a3050" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>`;
+        return `<div class="flex-1 border ${n.border} rounded-2xl p-4 slide-r d${Math.ceil(i/2)+1} hover:-translate-y-1 transition-transform duration-200" style="background:${n.bg.includes('indigo')?'rgba(99,102,241,.05)':n.bg.includes('emerald')?'rgba(16,185,129,.04)':n.bg.includes('violet')?'rgba(139,92,246,.05)':n.bg.includes('blue')?'rgba(59,130,246,.04)':'rgba(34,211,238,.04)'}">
+          <p class="text-[11px] font-black mb-3" style="color:${n.color}">${n.title}</p>
+          <div class="space-y-1.5">${n.items.map(it=>`<div class="text-[10px] text-[#3a5878] bg-[#060e1a] rounded-lg px-2 py-1 truncate">${it}</div>`).join('')}</div>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>
+
+  <!-- Detail cards -->
+  <div class="grid grid-cols-2 gap-4 mb-4">
+    <!-- Crawlers -->
+    <div class="card p-5 fade-up d3">
+      <h3 class="text-sm font-bold text-white mb-4">Crawlers Disponíveis</h3>
+      <div class="grid grid-cols-3 gap-2">
+        ${['TJSP','TJRJ','TJMG','TJRS','TJPR','TRF1','TRF2','TRF3','TRF4','TRF5','TRF6','TRT2','TRT4','TRT15','STJ','STF','TST','DataJud'].map(t=>`<div class="text-[10px] text-center py-1.5 px-2 rounded-lg bg-[#060e1a] text-emerald-400 mono font-semibold">${t}</div>`).join('')}
+        <div class="text-[10px] text-center py-1.5 px-2 rounded-lg bg-[#060e1a] text-[#2a4060] col-span-3">+ 70 outros via DataJud</div>
+      </div>
+    </div>
+    <!-- Database schema -->
+    <div class="card p-5 fade-up d4">
+      <h3 class="text-sm font-bold text-white mb-4">Modelo de Dados</h3>
+      <div class="space-y-2">
+        ${[
+          {table:'processos',fields:'id · numero_cnj · tribunal · grau · vara · comarca · classe · assunto · valor · situacao · dados_brutos',color:'text-indigo-400'},
+          {table:'partes',fields:'id · processo_id · tipo_parte · nome · documento · oab · polo',color:'text-violet-400'},
+          {table:'movimentacoes',fields:'id · processo_id · data · tipo · descricao · impacto · categoria',color:'text-blue-400'},
+          {table:'prazos',fields:'id · processo_id · tipo_prazo · descricao · data_vencimento · cumprido',color:'text-amber-400'},
+          {table:'monitoramentos',fields:'id · processo_id · ativo · email · webhook · proxima_verificacao',color:'text-emerald-400'},
+          {table:'notificacoes',fields:'id · processo_id · tipo · resumo · lida · criado_em',color:'text-red-400'},
+        ].map(t=>`<div class="bg-[#060e1a] rounded-xl p-2.5">
+          <p class="text-[10px] font-bold ${t.color} mono mb-1">${t.table}</p>
+          <p class="text-[9px] text-[#2a4060] mono leading-relaxed">${t.fields}</p>
+        </div>`).join('')}
+      </div>
+    </div>
+  </div>
+
+  <!-- Tech stack -->
+  <div class="card p-5 fade-up d5">
+    <h3 class="text-sm font-bold text-white mb-4">Stack Tecnológico</h3>
+    <div class="grid grid-cols-4 gap-3">
+      ${[
+        {name:'FastAPI',role:'Framework Python async',color:'bg-emerald-600/15 text-emerald-400'},
+        {name:'SQLAlchemy',role:'ORM async + PostgreSQL',color:'bg-blue-600/15 text-blue-400'},
+        {name:'Claude AI',role:'Parser inteligente (Anthropic)',color:'bg-violet-600/15 text-violet-400'},
+        {name:'APScheduler',role:'Jobs automáticos diários',color:'bg-amber-600/15 text-amber-400'},
+        {name:'httpx',role:'Crawler HTTP assíncrono',color:'bg-indigo-600/15 text-indigo-400'},
+        {name:'BeautifulSoup4',role:'Parser HTML/XML',color:'bg-cyan-600/15 text-cyan-400'},
+        {name:'Pydantic v2',role:'Validação de dados',color:'bg-red-600/15 text-red-400'},
+        {name:'Docker',role:'Containerização completa',color:'bg-slate-600/15 text-slate-400'},
+      ].map(t=>`<div class="bg-[#060e1a] rounded-xl p-3">
+        <div class="w-8 h-8 rounded-lg ${t.color} flex items-center justify-center mb-2 text-[10px] font-black">${t.name.charAt(0)}</div>
+        <p class="text-[11px] font-bold text-white">${t.name}</p>
+        <p class="text-[9px] text-[#2a4060] mt-0.5">${t.role}</p>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ── API DOCS ──────────────────────
+function renderApiDocs(){
+  const endpoints=[
+    {method:'POST',path:'/processos/buscar',desc:'Busca processo por CNJ no tribunal e indexa no banco',body:'{"numero_cnj":"...","tribunal":"tjsp","usar_ai_parser":true}',response:'ProcessoSchema completo com partes e movimentações',tags:['processos']},
+    {method:'GET',path:'/processos/',desc:'Lista processos com filtros e paginação',params:'?tribunal=tjsp&situacao=Em Andamento&limite=50&offset=0',response:'ListaProcessos { total, processos[] }',tags:['processos']},
+    {method:'GET',path:'/processos/{numero_cnj}',desc:'Retorna processo pelo número CNJ do banco local',response:'ProcessoSchema',tags:['processos']},
+    {method:'DELETE',path:'/processos/{id}',desc:'Remove processo e seus dados relacionados',response:'204 No Content',tags:['processos']},
+    {method:'POST',path:'/processos/buscar-oab',desc:'Busca todos os processos de um advogado por OAB em múltiplos tribunais',body:'{"oab":"361329 SP","tribunais":["tjsp"],"tamanho_por_tribunal":100}',response:'RespostaOAB { total, processos[] }',tags:['oab']},
+    {method:'GET',path:'/partes/processo/{id}',desc:'Lista todas as partes de um processo',params:'?tipo_parte=ADVOGADO&polo=ATIVO',response:'ParteSchema[]',tags:['partes']},
+    {method:'GET',path:'/partes/buscar',desc:'Busca partes por nome, OAB ou documento',params:'?nome=Fulano&oab=123456SP&limite=50',response:'ParteSchema[]',tags:['partes']},
+    {method:'POST',path:'/api/processos/buscar',desc:'Busca processo por CNJ no tribunal e indexa no banco',body:'{"numero_cnj":"...","tribunal":"tjsp","usar_ai_parser":true}',response:'ProcessoSchema completo com partes e movimentações',tags:['processos']},
+    {method:'GET',path:'/api/processos/',desc:'Lista processos com filtros e paginação',params:'?tribunal=tjsp&situacao=Em Andamento&limite=50&offset=0',response:'ListaProcessos { total, processos[] }',tags:['processos']},
+    {method:'GET',path:'/api/processos/{numero_cnj}',desc:'Retorna processo pelo número CNJ do banco local',response:'ProcessoSchema',tags:['processos']},
+    {method:'DELETE',path:'/api/processos/{id}',desc:'Remove processo e seus dados relacionados',response:'204 No Content',tags:['processos']},
+    {method:'POST',path:'/api/processos/buscar-oab',desc:'Busca todos os processos de um advogado por OAB em múltiplos tribunais',body:'{"oab":"361329 SP","tribunais":["tjsp"],"tamanho_por_tribunal":100}',response:'RespostaOAB { total, processos[] }',tags:['oab']},
+    {method:'GET',path:'/api/partes/processo/{id}',desc:'Lista todas as partes de um processo',params:'?tipo_parte=ADVOGADO&polo=ATIVO',response:'ParteSchema[]',tags:['partes']},
+    {method:'GET',path:'/api/partes/buscar',desc:'Busca partes por nome, OAB ou documento',params:'?nome=Fulano&oab=123456SP&limite=50',response:'ParteSchema[]',tags:['partes']},
+    {method:'POST',path:'/api/monitoramento/',desc:'Ativa monitoramento automático de um processo',body:'{"processo_id":1,"notificar_email":"x@y.com","webhook_url":"https://..."}',response:'MonitoramentoSchema',tags:['monitoramento']},
+    {method:'GET',path:'/api/monitoramento/',desc:'Lista todos os monitoramentos ativos',response:'MonitoramentoSchema[]',tags:['monitoramento']},
+    {method:'DELETE',path:'/api/monitoramento/{id}',desc:'Remove um monitoramento',response:'204 No Content',tags:['monitoramento']},
+    {method:'GET',path:'/api/prazos/processo/{id}',desc:'Lista prazos de um processo',response:'PrazoSchema[]',tags:['prazos']},
+    {method:'GET',path:'/api/prazos/vencendo',desc:'Lista prazos a vencer nos próximos N dias',params:'?dias=7',response:'PrazoSchema[]',tags:['prazos']},
+    {method:'GET',path:'/api/notificacoes/',desc:'Lista notificações com filtro de lidas/não-lidas',params:'?lida=false&limite=20',response:'NotificacaoSchema[]',tags:['notificacoes']},
+    {method:'GET',path:'/api/health',desc:'Health check da API e do banco de dados',response:'{"status":"ok","db":"ok","timestamp":"..."}',tags:['sistema']},
+  ];
+  const methodColor={GET:'text-blue-400 bg-blue-900/20',POST:'text-emerald-400 bg-emerald-900/20',DELETE:'text-red-400 bg-red-900/20',PUT:'text-amber-400 bg-amber-900/20'};
+
+  document.getElementById('pageContent').innerHTML=`
+  <div class="max-w-3xl mx-auto">
+    <div class="mb-6 fade-up">
+      <h2 class="text-lg font-black text-white">API Reference</h2>
+      <p class="text-[12px] text-[#3a5878] mt-0.5">Base URL: <span class="mono text-indigo-400">${escHtml(apiBase())}</span> · Autenticação: <span class="mono text-amber-400">X-API-Key</span></p>
+    </div>
+    <div class="space-y-3">
+      ${endpoints.map((e,i)=>`
+      <div class="card p-4 fade-up d${Math.min(i%6+1,8)}">
+        <div class="flex items-start gap-3 mb-2">
+          <span class="badge ${methodColor[e.method]||'badge-slate'} text-[10px] mono font-black flex-shrink-0">${e.method}</span>
+          <p class="text-sm font-bold text-white mono leading-tight">${escHtml(e.path)}</p>
+        </div>
+        <p class="text-[11px] text-[#4a6080] mb-2 ml-0">${escHtml(e.desc)}</p>
+        ${e.params?`<div class="bg-[#060e1a] rounded-lg p-2 mb-2"><p class="text-[9px] text-[#2a4060] mb-1 uppercase font-bold">Query params</p><p class="text-[10px] text-[#5a7a9a] mono">${escHtml(e.params)}</p></div>`:''}
+        ${e.body?`<div class="bg-[#060e1a] rounded-lg p-2 mb-2"><p class="text-[9px] text-[#2a4060] mb-1 uppercase font-bold">Body</p><p class="text-[10px] text-[#5a7a9a] mono">${escHtml(e.body)}</p></div>`:''}
+        <div class="flex items-center justify-between">
+          <p class="text-[10px] text-[#2a4060]">→ <span class="text-[#3a5878]">${escHtml(e.response)}</span></p>
+          <div class="flex gap-1">${e.tags.map(t=>`<span class="badge badge-slate text-[9px]">${t}</span>`).join('')}</div>
+        </div>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CHART CLEANUP
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function destroyCharts(){
+  Object.values(state.charts).forEach(c=>{try{c.destroy();}catch{}});
+  state.charts={};
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// NAV BADGES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function updateNavBadges(){
+  const ps=state.processos;
+  const ms=state.monitoramentos.filter(m=>m.ativo);
+  const pz=state.prazos.filter(p=>!p.cumprido);
+  document.getElementById('nb-processos').textContent=ps.length||'—';
+  document.getElementById('nb-mon').textContent=ms.length||'—';
+  document.getElementById('nb-prazos').textContent=pz.length||'—';
+  const unread=state.notificacoes.filter(n=>!n.lida).length;
+  const badge=document.getElementById('notifBadge');
+  badge.classList.toggle('hidden',unread===0);
+  if(unread>0) badge.textContent=unread;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// BOOTSTRAP
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+async function bootstrap(){
+  const dot=document.getElementById('statusDot');
+  const txt=document.getElementById('statusTxt');
+  const demoBadge=document.getElementById('demoBadge');
+
+  // Try real API
+  try{
+    await apiFetch('/health');
+    dot.className='w-2 h-2 rounded-full dot-online';
+    txt.textContent='API online'; txt.style.color='#34d399';
+    state.demo=false;
+    demoBadge.classList.add('hidden');
+
+    // Load real data
+    try{
+      const r=await apiFetch('/api/processos');
+      state.processos=(r.processos||r.items||r||[]);
+    }catch{}
+    try{ state.monitoramentos=[]; }catch{}
+    try{
+      const n=await apiFetch('/api/notificacoes');
+      state.notificacoes=Array.isArray(n)?n:[];
+    }catch{ state.notificacoes=[];}
+    try{
+      const p=await apiFetch('/api/prazos/vencendo?dias=30');
+      state.prazos=Array.isArray(p)?p:[];
+    }catch{ state.prazos=[];}
+
+    // Fallback to demo if no data
+    if(state.processos.length===0){
+      state.processos=DEMO.processos;
+      state.monitoramentos=DEMO.monitoramentos;
+      state.notificacoes=DEMO.notificacoes;
+      state.prazos=DEMO.prazos;
+      state.demo=true;
+      demoBadge.classList.remove('hidden');
+      dot.className='w-2 h-2 rounded-full dot-demo';
+      txt.textContent='API online · sem dados'; txt.style.color='#fbbf24';
+    }
+  }catch{
+    // Use demo mode
+    state.demo=true;
+    state.processos=DEMO.processos;
+    state.monitoramentos=DEMO.monitoramentos;
+    state.notificacoes=DEMO.notificacoes;
+    state.prazos=DEMO.prazos;
+    dot.className='w-2 h-2 rounded-full dot-demo';
+    txt.textContent='Modo Demo'; txt.style.color='#fbbf24';
+    demoBadge.classList.remove('hidden');
+  }
+
+  updateNavBadges();
+  renderPage();
+}
+
+// ── Init ──
+bootstrap();
+</script>
+</body>
+</html>

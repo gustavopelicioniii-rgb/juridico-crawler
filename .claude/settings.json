@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"from src.main import app; print\\('OK: app carregada com', len\\(app.routes\\), 'rotas'\\)\")",
+      "Bash(python3 -c \"from src.main import app; print\\('OK: app carregada com', len\\(app.routes\\), 'rotas'\\)\")",
+      "Bash(docker compose:*)",
+      "Bash(py -3 -c \"import ast; ast.parse\\(open\\('src/main.py'\\).read\\(\\)\\); print\\('main.py: OK'\\)\")",
+      "Bash(find . -name \"*.pyc\" -delete)",
+      "Bash(grep -r \"from src\" src/main.py src/api/routes/*.py)"
+    ]
+  }
+}

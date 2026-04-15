@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc -l /c/Users/empre/juridico-crawler/src/crawlers/*.py)",
+      "Bash(grep -r \"except.*:\\\\s*$\\\\|except.*:\\\\s*pass\" /c/Users/empre/juridico-crawler/src --include=\"*.py\" -A 1)",
+      "Bash(ls -la /c/Users/empre/juridico-crawler/tests/ /c/Users/empre/juridico-crawler/test_*.py)",
+      "Bash(grep -B 5 \"pass$\")",
+      "Bash(find /c/Users/empre/juridico-crawler/src -name \"*.py\" -exec wc -l {} +)",
+      "Bash(grep -r \"pass\\\\s*$\" /c/Users/empre/juridico-crawler/src --include=\"*.py\")",
+      "Bash(.venv/Scripts/python.exe -c ':*)",
+      "Bash(.venv/Scripts/python.exe -c \"from src.config import settings; print\\('OK', settings.datajud_base_url\\)\")",
+      "Bash(ls /c/Users/empre/juridico-crawler/.venv/Scripts/python*)",
+      "Bash(ls /c/Users/empre/juridico-crawler/.venv/bin/python*)",
+      "Bash(.venv/Scripts/pip.exe list:*)",
+      "Bash(python -c ':*)",
+      "Bash(.venv/Scripts/pip.exe install:*)",
+      "Bash(.venv/Scripts/python.exe teste_10_oabs.py)",
+      "Bash(set PYTHONIOENCODING=utf-8)",
+      "Bash(.venv/Scripts/python.exe teste_10_cnjs.py)",
+      "Bash(.venv/Scripts/python.exe -c \"from playwright.async_api import async_playwright; print\\('Playwright OK'\\)\")",
+      "Bash(.venv/Scripts/playwright.exe install:*)",
+      "Bash(.venv/Scripts/python.exe investigar_pje.py)",
+      "Bash(PYTHONIOENCODING=utf-8 python investigar_pje.py)",
+      "Bash(ls C:/Users/empre/juridico-crawler/requirements*)"
+    ]
+  }
+}

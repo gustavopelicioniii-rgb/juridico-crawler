@@ -1,0 +1,12 @@
+{
+  "name": "juridico-crawler-dashboard",
+  "version": "1.0.0",
+  "description": "Dashboard visual do JurídicoCrawler",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
