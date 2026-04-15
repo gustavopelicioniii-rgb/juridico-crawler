@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+ENV/
+pip-selfcheck.json
+
+# Banco de dados local
+*.db
+*.sqlite
+*.sqlite3
+backup_local.sql
+
+# Variáveis de ambiente e segredos
+.env
+.env.*
+*.env
+secrets.json
+config.local.*
+
+# Logs
+*.log
+logs/
+*.out
+
+# Node
+node_modules/
+npm-debug.log*
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Arquivos temporários e debug
+tmp/
+*.tmp
+tjsp_debug_pagination.html
+tjsp_oab_results_debug.html
+
+# Docker volumes
+.docker/
+
+# Coverage e testes
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Builds
+dist/
+build/
+*.egg-info/
