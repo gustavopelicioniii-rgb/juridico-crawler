@@ -12,12 +12,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Create Railway Token File
+        run: echo "${{ secrets.RAILWAY_TOKEN }}" > railway_token
+
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Login and Deploy
-        run: |
-          railway login --token $RAILWAY_TOKEN
-          railway up --prod
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - name: Login
+        run: cat railway_token | railway login --token-stdin
+
+      - name: Deploy
+        run: railway up --prod
