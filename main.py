@@ -322,6 +322,56 @@ async def buscar_por_cnj(
 
 
 # ============================================================================
+# MIGRATIONS
+# ============================================================================
+
+class MigrationResponse(BaseModel):
+    status: str
+    migrations_run: list[str]
+    errors: list[str]
+
+@app.post("/api/migrations/run", tags=["system"], response_model=MigrationResponse)
+async def run_migrations():
+    """
+    Executa todas as migrations do banco de dados.
+    Use para inicializar o banco ou aplicar updates.
+    """
+    import os
+    from pathlib import Path
+    
+    migrations_dir = Path(__file__).parent / "src" / "database" / "migrations"
+    migration_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith('.sql')])
+    
+    migrations_run = []
+    errors = []
+    
+    async with AsyncSessionLocal() as session:
+        for filename in migration_files:
+            try:
+                filepath = migrations_dir / filename
+                sql_content = filepath.read_text()
+                
+                # Executa cada statement separadamente
+                for statement in sql_content.split(';'):
+                    statement = statement.strip()
+                    if statement:
+                        await session.execute(statement)
+                
+                await session.commit()
+                migrations_run.append(filename)
+                logger.info(f"Migration {filename} executada com sucesso")
+            except Exception as e:
+                await session.rollback()
+                errors.append(f"{filename}: {str(e)}")
+                logger.error(f"Erro na migration {filename}: {e}")
+    
+    return MigrationResponse(
+        status="ok" if not errors else "completed_with_errors",
+        migrations_run=migrations_run,
+        errors=errors
+    )
+
+# ============================================================================
 # DASHBOARD
 # ============================================================================
 
