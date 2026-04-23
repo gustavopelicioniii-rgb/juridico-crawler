@@ -10,7 +10,7 @@ Suporta:
 """
 
 import asyncio
-import logging
+import structlog
 import re
 from typing import Any, Optional
 from datetime import date, datetime
@@ -19,7 +19,7 @@ from decimal import Decimal, InvalidOperation
 from src.crawlers.base import BaseCrawler
 from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 ESAJ_BASE = "https://esaj.tjsp.jus.br"
 

@@ -8,14 +8,14 @@ Free tier: 500 req/mês. Configure FIRECRAWL_API_KEY no .env.
 API docs: https://docs.firecrawl.dev/api-reference
 """
 
-import logging
+import structlog
 from typing import Optional
 
 import httpx
 
 from src.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 FIRECRAWL_API_URL = "https://api.firecrawl.dev/v1/scrape"
 

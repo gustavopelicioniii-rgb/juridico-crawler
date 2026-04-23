@@ -5,7 +5,7 @@ Substitui a dependência do CNJ (DataJud) distribuindo as buscas massivas de OAB
 inteligente e paralelamente diretamente para os scrappers nativos de cada Tribunal.
 """
 import asyncio
-import logging
+import structlog
 from typing import Optional
 
 from src.parsers.estruturas import ProcessoCompleto
@@ -20,7 +20,7 @@ from src.crawlers.trf import TRFCrawler
 from src.crawlers.stj import STJCrawler
 from src.crawlers.tst import TSTCrawler
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class OrquestradorNativo:
     """Roteia as pesquisas de múltiplos tribunais para os motores nativos correspondentes."""

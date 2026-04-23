@@ -10,13 +10,13 @@ Tribunais cobertos:
 """
 
 import asyncio
-import logging
+import structlog
 from typing import Optional
 
 from src.crawlers.tjsp import TJSPCrawler
 from src.parsers.estruturas import ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # TJs com interface eSaj, excluindo TJSP (coberto pelo TJSPCrawler) e os
 # cobertos pelo PJe (TJBA, TJPE, TJCE, TJRN, TJMA, TJPI, TJAL, TJSE, TJAM, TJRO, TJAC).

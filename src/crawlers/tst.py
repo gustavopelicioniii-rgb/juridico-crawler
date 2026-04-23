@@ -11,7 +11,7 @@ Não requer autenticação nem CAPTCHA para consultas públicas.
 from __future__ import annotations
 
 import asyncio
-import logging
+import structlog
 import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -20,7 +20,7 @@ from typing import Any, Optional
 from src.crawlers.base import BaseCrawler
 from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Endpoints do TST — dois sistemas coexistem:
 #   PJe (processos novos):    pje.tst.jus.br/consultaprocessual

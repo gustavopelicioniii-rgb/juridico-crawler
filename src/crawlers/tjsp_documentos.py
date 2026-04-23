@@ -17,7 +17,7 @@ Variáveis de ambiente (.env):
 
 from __future__ import annotations
 
-import logging
+import structlog
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -26,7 +26,7 @@ from typing import Optional
 
 from src.config import settings
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 ESAJ_BASE = "https://esaj.tjsp.jus.br"
 

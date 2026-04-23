@@ -8,7 +8,7 @@ Autenticação: Header APIKey (chave pública, sem cadastro)
 
 import asyncio
 import json
-import logging
+import structlog
 from typing import Any, Optional
 
 import httpx
@@ -18,7 +18,7 @@ from src.crawlers.base import BaseCrawler
 from src.parsers.ai_parser import extrair_dados_completos
 from src.parsers.estruturas import ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ============================================================
 # Mapeamento de tribunal → sufixo do endpoint DataJud

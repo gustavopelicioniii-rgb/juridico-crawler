@@ -6,7 +6,7 @@ API Routes para Autenticação Multi-Tenant
 - GET /api/auth/me - Dados do usuário autenticado
 - POST /api/auth/change-password - Altera senha
 """
-import logging
+import structlog
 from datetime import datetime
 from typing import Optional
 
@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.rate_limit import limiter
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 from src.auth import jwt_handler, password_hasher, TokenError
 from src.database.connection import get_db

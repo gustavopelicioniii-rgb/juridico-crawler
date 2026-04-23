@@ -9,7 +9,7 @@ Responsabilidades:
 """
 
 import hashlib
-import logging
+import structlog
 from datetime import datetime, date
 from typing import Optional
 
@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database.models import Processo, Parte, Movimentacao, AdvogadoCatalog
 from src.parsers.estruturas import ProcessoCompleto, MovimentacaoProcesso
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 def _hash_movimentacao(mov: MovimentacaoProcesso) -> str:

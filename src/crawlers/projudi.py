@@ -5,14 +5,14 @@ Este crawler fornece a base para consulta direta nos tribunais PROJUDI,
 complementando os dados do DataJud com scraping em tempo real.
 """
 
-import logging
+import structlog
 import re
 from typing import Any, Optional
 
 from src.crawlers.base import BaseCrawler
 from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 PROJUDI_URLS: dict[str, str] = {
     "tjpr": "https://projudi.tjpr.jus.br/projudi/",

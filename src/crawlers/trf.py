@@ -14,7 +14,7 @@ buscas por número CNJ, mas para busca por OAB usa o portal HTML.
 from __future__ import annotations
 
 import asyncio
-import logging
+import structlog
 import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
@@ -23,7 +23,7 @@ from typing import Any, Optional
 from src.crawlers.base import BaseCrawler
 from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────
 # Configuração dos portais TRF

@@ -7,7 +7,7 @@ todas as variações de estrutura aninhada do DataJud sem depender de IA.
 """
 
 import json
-import logging
+import structlog
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
@@ -17,7 +17,7 @@ import anthropic
 from src.config import settings
 from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _client: Optional[anthropic.AsyncAnthropic] = None
 

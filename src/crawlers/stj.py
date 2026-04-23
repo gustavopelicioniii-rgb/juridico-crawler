@@ -10,14 +10,14 @@ Estratégia:
 3. Para cada CNJ, busca detalhe via API JSON do portal
 """
 
-import logging
+import structlog
 import re
 from typing import Optional
 
 from src.crawlers.base import BaseCrawler
 from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 STJ_BASE = "https://processo.stj.jus.br"
 STJ_PESQUISA = f"{STJ_BASE}/processo/pesquisa/"

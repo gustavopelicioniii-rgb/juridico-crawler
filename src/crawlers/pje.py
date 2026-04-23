@@ -4,7 +4,7 @@ Cobre: todos os 24 TRTs, TJDFT, TST e TJs que usam PJe.
 """
 
 import asyncio
-import logging
+import structlog
 import re
 from typing import Any, Optional
 from datetime import date
@@ -12,7 +12,7 @@ from datetime import date
 from src.crawlers.base import BaseCrawler
 from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # URL base de cada tribunal no PJe
 PJE_URLS: dict[str, str] = {

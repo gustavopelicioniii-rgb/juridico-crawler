@@ -2,7 +2,7 @@
 Jobs do APScheduler para atualização automática de processos monitorados.
 """
 
-import logging
+import structlog
 from datetime import datetime, timedelta
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -15,7 +15,7 @@ from src.crawlers.datajud import DataJudCrawler
 from src.database.connection import AsyncSessionLocal
 from src.database.models import Monitoramento, Movimentacao, Notificacao, Parte, Processo
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _scheduler: AsyncIOScheduler | None = None
 

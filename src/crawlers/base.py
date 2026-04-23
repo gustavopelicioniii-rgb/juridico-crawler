@@ -11,7 +11,7 @@ import random
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Awaitable, Callable, Optional
-import logging
+import structlog
 
 import httpx
 from tenacity import (
@@ -24,7 +24,7 @@ from tenacity import (
 from src.config import settings
 from src.parsers.estruturas import ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # ============================================================

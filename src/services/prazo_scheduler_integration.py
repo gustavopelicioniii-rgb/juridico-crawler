@@ -7,7 +7,7 @@ Esta integração é executada automaticamente a cada dia:
 3. Verifica prazos vencendo (3 dias antes)
 4. Envia notificações automáticas
 """
-import logging
+import structlog
 from datetime import datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +18,7 @@ from src.database.models import (
 from src.services.prazo_service import PrazoService
 from src.services.notificacao_service import NotificacaoService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 async def processar_prazos_para_movimento(

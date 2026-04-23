@@ -21,7 +21,7 @@ Fluxo:
 """
 from datetime import datetime, timedelta
 import asyncio
-import logging
+import structlog
 from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,7 +31,7 @@ from src.database.models import Processo, Monitoramento
 from src.services.processo_service import ProcessoService
 from src.services.notificacao_service import NotificacaoService
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Semáforo para limitar concorrência ao monitorar processos em paralelo
 _SEMAFORO_MONITORAMENTO = asyncio.Semaphore(5)

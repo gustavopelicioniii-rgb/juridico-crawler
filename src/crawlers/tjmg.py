@@ -8,12 +8,12 @@ Este crawler orquestra a busca nos dois sistemas primários publicos do TJMG:
 Dessa forma, contornamos a falha do CNJ de forma completa para o estado de MG.
 """
 import asyncio
-import logging
+import structlog
 from typing import Optional, Any
 from src.crawlers.base import BaseCrawler
 from src.parsers.estruturas import ProcessoCompleto
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 class TJMG_UnifiedCrawler(BaseCrawler):
     def __init__(self, *args, **kwargs):
