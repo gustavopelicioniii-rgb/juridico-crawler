@@ -12,7 +12,12 @@ from datetime import date, datetime
 from bs4 import BeautifulSoup
 
 from src.crawlers.base import BaseCrawler
-from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
+from src.parsers.estruturas import (
+    MovimentacaoProcesso,
+    ParteProcesso,
+    ProcessoCompleto,
+    inferir_grau_cnj,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -202,11 +207,139 @@ class PJeCrawler(BaseCrawler):
                 full_url = f"{url}?{urlencode(params)}"
                 html_fc = await fc.scrape_html(full_url)
                 if html_fc:
-                    return self._parse_lista_html(html_fc, tribunal)
+                    parsed = self._parse_lista_html(html_fc, tribunal)
+                    if parsed:
+                        return parsed
             except Exception as e:
                 logger.debug("PJe %s: Firecrawl falhou para OAB %s: %s", tribunal, numero_oab, e)
 
-        return []
+        # Último recurso: Playwright para interagir com formulário JSF (ex: TJMG PJe)
+        return await self._scrape_pje_jsf_playwright(tribunal, numero_oab, uf_oab)
+
+    # ------------------------------------------------------------------
+    # SCRAPING JSF VIA PLAYWRIGHT (para portais que exigem interação com formulário)
+    # ------------------------------------------------------------------
+
+    async def _scrape_pje_jsf_playwright(
+        self,
+        tribunal: str,
+        numero_oab: str,
+        uf_oab: str,
+    ) -> list[ProcessoCompleto]:
+        """
+        Scraper Playwright para portais PJe que usam formulário JSF com POST.
+
+        Alguns tribunais (ex: TJMG PJe) exigem que o formulário seja submetido
+        via POST com ViewState do JSF — impossível de fazer com requests simples.
+        O Playwright renderiza o browser e interage com o formulário.
+
+        Returns:
+            Lista de ProcessoCompleto (só com numero_cnj preenchido inicialmente).
+        """
+        try:
+            pw_client = self._get_playwright_client()
+            if not pw_client:
+                logger.debug("PJe %s: Playwright não disponível para JSF", tribunal)
+                return []
+        except Exception:
+            return []
+
+        browser = None
+        try:
+            from playwright.async_api import async_playwright
+
+            pw = await async_playwright().start()
+            browser = await pw.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+            )
+            context = await browser.new_context(
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+            )
+            page = await context.new_page()
+
+            base_url = PJE_URLS.get(tribunal.lower())
+            if not base_url:
+                return []
+
+            form_url = f"{base_url}/ConsultaPublica/listView.seam"
+
+            # 1. Carregar página inicial do formulário
+            await page.goto(form_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # 2. Selecionar UF (valor numérico)
+            uf_map = {
+                "AC": "0", "AL": "1", "AP": "2", "AM": "3", "BA": "4",
+                "CE": "5", "DF": "6", "ES": "7", "GO": "8", "MA": "9",
+                "MT": "10", "MS": "11", "MG": "12", "PA": "13", "PB": "14",
+                "PR": "15", "PE": "16", "PI": "17", "RJ": "18", "RN": "19",
+                "RS": "20", "RO": "21", "RR": "22", "SC": "23", "SP": "24",
+                "SE": "25", "TO": "26",
+            }
+            uf_value = uf_map.get(uf_oab.upper())
+            if uf_value:
+                try:
+                    await page.select_option(
+                        'select[name="fPP:Decoration:estadoComboOAB"]',
+                        uf_value,
+                        timeout=5000,
+                    )
+                except Exception as e:
+                    logger.debug("PJe %s: erro ao selecionar UF %s: %s", tribunal, uf_oab, e)
+
+            # 3. Preencher número OAB
+            await page.fill('input[name="fPP:Decoration:numeroOAB"]', numero_oab, timeout=5000)
+
+            # 4. Clicar em Pesquisar
+            await page.click('input[name="fPP:searchProcessos"]', timeout=5000)
+
+            # 5. Aguardar resposta
+            await page.wait_for_timeout(5000)
+
+            # 6. Extrair CNJs do HTML resultante
+            html = await page.content()
+            cnjs = re.findall(r"\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}", html)
+            cnjs = list(dict.fromkeys(c for c in cnjs if not c.startswith("9999")))
+
+            if cnjs:
+                logger.info(
+                    "PJe %s Playwright: %d processo(s) para OAB %s/%s",
+                    tribunal, len(cnjs), numero_oab, uf_oab,
+                )
+
+            return [
+                ProcessoCompleto(
+                    numero_cnj=cnj,
+                    tribunal=tribunal,
+                    grau=inferir_grau_cnj(cnj),
+                )
+                for cnj in cnjs
+            ]
+
+        except Exception as e:
+            logger.debug("PJe %s Playwright JSF: erro geral: %s", tribunal, e)
+            return []
+        finally:
+            if browser:
+                await browser.close()
+            try:
+                await pw.stop()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _get_playwright_client():
+        """Retorna cliente Playwright se disponível, ou None."""
+        try:
+            from playwright.async_api import async_playwright
+            return True
+        except ImportError:
+            return None
 
     # ------------------------------------------------------------------
     # BUSCA POR OAB EM MÚLTIPLOS TRIBUNAIS
