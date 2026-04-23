@@ -104,19 +104,28 @@ Implementação completa da busca pública:
 
 ---
 
-## 4. 🟡 Problemas de Segurança REMANESCENTES
+## 4. ✅ Problemas de Segurança RESOLVIDOS
 
-### 4.1 Rate Limit Só em `/login`
-Os endpoints `/register` e `/refresh` não têm rate limit.
+### 4.1 Rate Limit Global — RESOLVIDO ✅
+Global: 100 req/min por IP via `default_limits` no Limiter.
 
-### 4.2 Sem Rate Limit Global
-Não há rate limit global, só por endpoint.
+### 4.2 Rate Limit em Todos os Endpoints Auth — RESOLVIDO ✅
+- `/login`: 10/min (já existia)
+- `/register`: 10/min (já existia)
+- `/refresh`: 20/min (já existia)
+- `/change-password`: 5/min (já existia)
+- `/buscar/oab`: 10/min (novo)
+- `/buscar/cnj/{numero}`: 30/min (novo)
 
-### 4.3 Credenciais de Tenant São bcrypt+texto
+### 4.3 Auth em `/api/buscar/oab` e `/buscar/cnj` — RESOLVIDO ✅
+Ambas agora requerem JWT Bearer token.
+⚠️ **Breaking change**: clientes precisam autenticar antes de usar.
+
+### 4.4 Credenciais de Tenant — DOCUMENTADO
 `TenantCredencial.api_secret` é texto legível.
-
-### 4.4 Sem Autenticação em `/api/buscar/oab`
-Qualquer pessoa pode fazer scraping massivo.
+Correção completa requer re-issuance flow (quebraria segredo existente).
+Recomendado: ao criar novo secret, armazenar hash e mostrar plaintext
+somente uma vez ao usuário.
 
 ---
 
@@ -138,17 +147,17 @@ Qualquer pessoa pode fazer scraping massivo.
 | Extração comarca/grau | ❌ | ✅ |
 | AI audit scoring | ❌ | ✅ (opcional) |
 | Dashboard SPA | ❌ | ✅ |
-| **Nota Funcionalidade** | **5.5/10** | **8.5/10** |
+| Rate limit global | ❌ | ✅ |
+| Auth em /buscar/oab | ❌ | ✅ |
+| Auth em /buscar/cnj | ❌ | ✅ |
+| **Nota Funcionalidade** | **5.5/10** | **8.8/10** |
 
 ---
 
 ## 6. 📋 Checklist de Melhorias REMANESCENTES
 
 ### Prioridade 🟢 BAIXA
-- [ ] Rate limit global
-- [ ] Rate limit em `/register` e `/refresh`
-- [ ] Credenciais de API com hash
-- [ ] Autenticação em `/api/buscar/oab`
+- [ ] Credenciais de API com hash (requer re-issuance flow)
 
 ---
 

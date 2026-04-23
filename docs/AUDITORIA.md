@@ -237,7 +237,9 @@ Comentários, nomes de variáveis e docstrings alternam idiomas. Padronizar (sug
 - [x] CI rodando pytest (workflow adicionado)
 - [x] Migrar `logging` para `structlog` (20 módulos)
 - [x] Documentar arquitetura do orquestrador (`docs/ARQUITETURA_ORQUESTRADOR.md`)
+- [x] Rate limit global (100/min) + auth em /buscar/oab e /buscar/cnj (2026-04-23)
 - [ ] Padronizar idioma (PT/EN mix - baixa prioridade)
+- [ ] Hash de TenantCredencial.api_secret (requer re-issuance flow)
 
 ---
 
@@ -247,8 +249,8 @@ Comentários, nomes de variáveis e docstrings alternam idiomas. Padronizar (sug
 |---|---|---|
 | **Arquitetura** | 8/10 | Boa separação de camadas, padrão orquestrador inteligente |
 | **Qualidade do código** | 7/10 | Débito técnico quitado; código mais limpo |
-| **Segurança** | 7/10 | Hardening feito; resta only revoke do token manual |
+| **Segurança** | 8/10 | Rate limit global + auth em /buscar/* |
 | **Documentação** | 8/10 | README atualizado; docs/ organizado |
 | **Testes** | 4/10 | CI adicionado, cobertura ainda mínima |
 | **DevOps** | 8/10 | Docker, Railway, GH Actions OK; CI adicionado |
-| **NOTA GERAL** | **7,0/10** | **Pronto para produção após hardening de segurança** |
+| **NOTA GERAL** | **7,5/10** | **Pronto para produção após hardening de segurança** |
