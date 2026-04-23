@@ -94,6 +94,8 @@ class ProcessoService:
             delete(Parte).where(Parte.processo_id == processo_db.id)
         )
 
+        # Adiciona todas as partes primeiro
+        partes_advogados = []  # Guarda OAB dos advogados para catalogar depois
         for parte in processo.partes:
             parte_db = Parte(
                 processo_id=processo_db.id,
@@ -104,8 +106,78 @@ class ProcessoService:
                 polo=parte.polo,
             )
             self.db.add(parte_db)
+            if parte.tipo_parte.upper() == "ADVOGADO" and parte.oab:
+                partes_advogados.append((parte.oab, parte.nome))
 
-        await self.db.flush()
+        await self.db.flush()  # Flush todas para obter IDs
+
+        # Popula AdvogadoCatalog com advogados encontrados
+        for oab, nome in partes_advogados:
+            await self.registrar_advogado(
+                numero_oab=oab,
+                uf=self._extrair_uf_da_oab(oab),
+                nome_completo=nome,
+            )
+
+        # ─ 2b. Cross-reference advogados com clientes ──────────────────────────
+        # Liga cada advogado à parte que ele representa (polo ativo ou passivo)
+        await self._vincular_advogados_a_clientes(processo_db.id)
+
+        await self.db.flush()  # Persiste os vínculos
+
+    async def _extrair_uf_da_oab(self, oab: str) -> str:
+        """Extrai a UF de uma OAB (ex: '361329SP' -> 'SP')."""
+        if not oab:
+            return ""
+        # OAB pode ser 123456SP ou 123456/SP
+        import re
+        match = re.search(r'([A-Z]{2})$', oab.upper())
+        if match:
+            return match.group(1)
+        return ""
+
+    async def _vincular_advogados_a_clientes(self, processo_id: int) -> None:
+        """
+        Vincula advogados às partes que representam usando oAB e proximidade.
+        Estratégia: advogado no mesmo 'bloco' de HTML que a parte.
+        """
+        try:
+            # Busca advogado e cliente no mesmo processo
+            advogado_result = await self.db.execute(
+                select(Parte).where(
+                    and_(
+                        Parte.processo_id == processo_id,
+                        Parte.tipo_parte.ilike("%ADVOGADO%")
+                    )
+                )
+            )
+            advogados = advogado_result.scalars().all()
+
+            cliente_result = await self.db.execute(
+                select(Parte).where(
+                    and_(
+                        Parte.processo_id == processo_id,
+                        Parte.tipo_parte.ilike("%REQUERENTE%"),
+                        Parte.advogado_de_id.is_(None)
+                    )
+                )
+            )
+            clientes = cliente_result.scalars().all()
+
+            for advogado in advogados:
+                if advogado.oab and clientes:
+                    # Vincula ao primeiro cliente sem advogado
+                    cliente_sem_adv = next(
+                        (c for c in clientes if c.advogado_de_id is None), 
+                        None
+                    )
+                    if cliente_sem_adv:
+                        advogado.advogado_de_id = cliente_sem_adv.id
+                        logger.debug(
+                            f"[VINCULO] Adv {advogado.oab} -> Cliente {cliente_sem_adv.nome[:30]}"
+                        )
+        except Exception as e:
+            logger.warning(f"[VINCULO] Erro ao vincular advogados: {e}")
 
         # ─ 3. Movimentações (detecta novas via hash) ──────────────────────────
         movs_existentes = await self.db.execute(
