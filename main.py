@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 
 import structlog
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -1063,6 +1063,7 @@ class BuscaOABRequest(BaseModel):
 @app.post("/api/buscar/oab", tags=["busca"])
 @limiter.limit("10/minute")
 async def buscar_por_oab(
+    request: Request,
     req: BuscaOABRequest,
     session: AsyncSession = Depends(AsyncSessionLocal),
     current_user: dict = Depends(get_current_user),
@@ -1151,6 +1152,7 @@ async def buscar_por_oab(
 @app.get("/api/buscar/cnj/{numero_cnj}", tags=["busca"])
 @limiter.limit("30/minute")
 async def buscar_por_cnj(
+    request: Request,
     numero_cnj: str,
     tribunal: Optional[str] = Query(None),
     session: AsyncSession = Depends(AsyncSessionLocal),
