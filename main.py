@@ -1061,13 +1061,17 @@ class BuscaOABRequest(BaseModel):
 
 
 @app.post("/api/buscar/oab", tags=["busca"])
+@limiter.limit("10/minute")
 async def buscar_por_oab(
     req: BuscaOABRequest,
     session: AsyncSession = Depends(AsyncSessionLocal),
+    current_user: dict = Depends(get_current_user),
 ):
     """
     Busca processos por número de OAB em todos os tribunais disponíveis
     e opcionalmente persiste os resultados no banco de dados.
+
+    ⚠️ Requer autenticação (JWT Bearer token).
     """
     from src.crawlers.orquestrador import OrquestradorNativo
     from src.services.processo_service import ProcessoService
@@ -1145,12 +1149,18 @@ async def buscar_por_oab(
 
 
 @app.get("/api/buscar/cnj/{numero_cnj}", tags=["busca"])
+@limiter.limit("30/minute")
 async def buscar_por_cnj(
     numero_cnj: str,
     tribunal: Optional[str] = Query(None),
     session: AsyncSession = Depends(AsyncSessionLocal),
+    current_user: dict = Depends(get_current_user),
 ):
-    """Busca um processo específico pelo número CNJ via DataJud."""
+    """
+    Busca um processo específico pelo número CNJ via DataJud.
+
+    ⚠️ Requer autenticação (JWT Bearer token).
+    """
     from src.crawlers.datajud import DataJudCrawler
     from src.services.processo_service import ProcessoService
 

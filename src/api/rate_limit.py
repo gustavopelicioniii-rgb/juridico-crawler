@@ -7,4 +7,5 @@ entre `main.py` e os módulos de router em `src/api/`.
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
+# Global: 100 req/min por IP — endpoints específicos podem ser mais restritivos
+limiter = Limiter(key_func=get_remote_address, default_limits=["100/minute"])
