@@ -81,6 +81,14 @@ class Settings(BaseSettings):
     crawler_max_retries: int = Field(3, validation_alias=AliasChoices("CRAWLER_MAX_RETRIES", "crawler_max_retries"))
     crawler_retry_delay: int = Field(5, validation_alias=AliasChoices("CRAWLER_RETRY_DELAY", "crawler_retry_delay"))
 
+    # --- AI Audit ---
+    usar_ai_audit: bool = Field(
+        False,
+        validation_alias=AliasChoices("USAR_AI_AUDIT", "usar_ai_audit"),
+    )
+    # Se True, usa Claude para avaliar score de auditoria dos processos.
+    # Custo: ~$0.001 por processo (muito barato mas não necessário em escala).
+
     # --- Scheduler ---
     scheduler_cron_hora: int = Field(0, validation_alias=AliasChoices("SCHEDULER_CRON_HORA", "scheduler_cron_hora"))
     scheduler_cron_minuto: int = Field(0, validation_alias=AliasChoices("SCHEDULER_CRON_MINUTO", "scheduler_cron_minuto"))

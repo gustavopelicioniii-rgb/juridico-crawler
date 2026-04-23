@@ -15,7 +15,12 @@ import re
 from typing import Optional
 
 from src.crawlers.base import BaseCrawler
-from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
+from src.parsers.estruturas import (
+    MovimentacaoProcesso,
+    ParteProcesso,
+    ProcessoCompleto,
+    inferir_grau_cnj,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -163,7 +168,7 @@ class STJCrawler(BaseCrawler):
         except Exception as e:
             logger.debug("STJ: detalhe HTML falhou para %s: %s", numero_cnj, e)
 
-        return ProcessoCompleto(numero_cnj=numero_cnj, tribunal="stj")
+        return ProcessoCompleto(numero_cnj=numero_cnj, tribunal="stj", grau=inferir_grau_cnj(numero_cnj))
 
     async def buscar_processo(self, numero_cnj: str, **kwargs) -> Optional[ProcessoCompleto]:
         return await self._buscar_detalhe(numero_cnj)
@@ -214,6 +219,7 @@ class STJCrawler(BaseCrawler):
         return ProcessoCompleto(
             numero_cnj=numero_cnj,
             tribunal="stj",
+            grau=inferir_grau_cnj(numero_cnj),
             classe_processual=data.get("classeProcessual") or data.get("classe"),
             assunto=data.get("assunto"),
             situacao=data.get("situacao"),
@@ -259,7 +265,7 @@ class STJCrawler(BaseCrawler):
         except Exception as e:
             logger.debug("STJ: parse HTML detalhe %s: %s", numero_cnj, e)
 
-        return ProcessoCompleto(numero_cnj=numero_cnj, tribunal="stj", partes=partes)
+        return ProcessoCompleto(numero_cnj=numero_cnj, tribunal="stj", grau=inferir_grau_cnj(numero_cnj), partes=partes)
 
     def _polo_de_tipo(self, tipo: str) -> str:
         ativos = {"RECORRENTE", "IMPETRANTE", "REQUERENTE", "AUTOR", "EXEQUENTE", "APELANTE"}

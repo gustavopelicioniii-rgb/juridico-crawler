@@ -17,7 +17,12 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 
 from src.crawlers.base import BaseCrawler
-from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
+from src.parsers.estruturas import (
+    MovimentacaoProcesso,
+    ParteProcesso,
+    ProcessoCompleto,
+    inferir_grau_cnj,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -625,6 +630,7 @@ class TJSPCrawler(BaseCrawler):
             return ProcessoCompleto(
                 numero_cnj=numero_cnj,
                 tribunal=self.tribunal_id,
+                grau=inferir_grau_cnj(numero_cnj),
                 vara=vara,
                 comarca=comarca,
                 classe_processual=classe,

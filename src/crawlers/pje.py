@@ -7,7 +7,9 @@ import asyncio
 import structlog
 import re
 from typing import Any, Optional
-from datetime import date
+from datetime import date, datetime
+
+from bs4 import BeautifulSoup
 
 from src.crawlers.base import BaseCrawler
 from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
@@ -291,9 +293,10 @@ class PJeCrawler(BaseCrawler):
                 detail_url = f"{base}/consultaPublica/DetalheProcessoConsultaPublica/listView.seam?numeroProcesso={numero_cnj}"
                 html_fc = await fc.scrape_html(detail_url)
                 if html_fc:
-                    # Implementação mínima de parse direto no detalhe HTML se necessário (por ora, retorna do banco se não tiver parser HTML robusto)
                     logger.info("PJe %s: HTML do detalhe obtido via Firecrawl para %s", tribunal, numero_cnj)
-                    # TODO: Implementar _parse_detalhe_html para PJe se houver necessidade frequente
+                    processo = self._parse_detalhe_html(html_fc, numero_cnj, tribunal)
+                    if processo:
+                        return processo
             except Exception as e:
                 logger.debug("PJe %s: Firecrawl falhou para detalhe %s: %s", tribunal, numero_cnj, e)
 
@@ -302,6 +305,139 @@ class PJeCrawler(BaseCrawler):
     # ------------------------------------------------------------------
     # Parsers
     # ------------------------------------------------------------------
+
+    def _parse_detalhe_html(self, html: str, numero_cnj: str, tribunal: str) -> Optional[ProcessoCompleto]:
+        """
+        Parse do HTML de detalhe de processo do PJe (fallback via Firecrawl).
+
+        O HTML do PJe contém seções bem definidas:
+        - #dadosBasicos ou table.dados-processo
+        - #partes ou table.partes
+        - #movimentacoes ou table.movimentacoes
+        """
+        soup = BeautifulSoup(html, "html.parser")
+
+        comarca = ""
+        vara = ""
+        classe = ""
+        distribuicao: Optional[datetime] = None
+        valor: Optional[float] = None
+        situacao = ""
+        grau = ""
+
+        # ── Dados básicos ────────────────────────────────────────────
+        for tabela in soup.find_all(["table", "div"], class_=re.compile(r"dados|basico|processo", re.I)):
+            for linha in tabela.find_all(["tr", "li", "div"]):
+                texto = linha.get_text(" ", strip=True)
+                if "Comarca" in texto or "Foro" in texto:
+                    m = re.search(r"(?:Comarca|Foro)[^:]*:?\s*[:\-]?\s*([^\n\r]+)", texto)
+                    if m:
+                        comarca = m.group(1).strip()
+                elif "Vara" in texto or "Órgão" in texto:
+                    m = re.search(r"(?:Vara|Órgão)[^:]*:?\s*[:\-]?\s*([^\n\r]+)", texto)
+                    if m:
+                        vara = m.group(1).strip()
+                elif "Classe" in texto:
+                    m = re.search(r"Classe[^:]*:?\s*[:\-]?\s*([^\n\r]+)", texto)
+                    if m:
+                        classe = m.group(1).strip()
+                elif "Distribuição" in texto or "Data" in texto:
+                    m = re.search(r"(\d{2}/\d{2}/\d{4})", texto)
+                    if m:
+                        try:
+                            distribuicao = datetime.strptime(m.group(1), "%d/%m/%Y")
+                        except ValueError:
+                            pass
+                elif "Valor" in texto:
+                    m = re.search(r"[R$]\s*([\d\.,]+)", texto)
+                    if m:
+                        try:
+                            valor = float(m.group(1).replace(".", "").replace(",", "."))
+                        except ValueError:
+                            pass
+                elif "Situação" in texto or "Status" in texto:
+                    m = re.search(r"(?:Situação|Status)[^:]*:?\s*[:\-]?\s*([^\n\r]+)", texto)
+                    if m:
+                        situacao = m.group(1).strip()
+
+        # ── Partes (polos ativo/passivo) ─────────────────────────────
+        partes: list[ParteProcesso] = []
+        polo_atual = "OUTROS"
+        for tabela in soup.find_all(["table", "div"], class_=re.compile(r"parte|polo", re.I)):
+            texto_tabela = tabela.get_text(" ", strip=True).upper()
+            if "ATIVO" in texto_tabela:
+                polo_atual = "ATIVO"
+            elif "PASSIVO" in texto_tabela:
+                polo_atual = "PASSIVO"
+            for linha in tabela.find_all(["tr", "li", "div"]):
+                cells = linha.find_all(["td", "span", "div"])
+                if len(cells) < 2:
+                    continue
+                cell_texts = [c.get_text(strip=True) for c in cells]
+                joined = " | ".join(cell_texts)
+
+                # Identifica advogado
+                if "ADVOGADO" in joined.upper():
+                    nome_adv = cell_texts[-1] if cell_texts else ""
+                    oab_m = re.search(r"(\d{6,7}[A-Z]{2})", joined, re.I)
+                    partes.append(ParteProcesso(
+                        nome=nome_adv.upper(),
+                        tipo_parte="ADVOGADO",
+                        polo=polo_atual,
+                        oab=oab_m.group(0) if oab_m else None,
+                    ))
+                # Identifica parte (não advogado)
+                elif any(t in joined.upper() for t in ["REQUERENTE", "AUTOR", "EXEQUENTE", "RECLAMANTE"]):
+                    nome = cell_texts[-1] if cell_texts else ""
+                    if nome and len(nome) > 3:
+                        partes.append(ParteProcesso(nome=nome.upper(), tipo_parte="REQUERENTE", polo="ATIVO"))
+                elif any(t in joined.upper() for t in ["REQUERIDO", "RÉU", "RÉ", "EXECUTADO", "RECLAMADO"]):
+                    nome = cell_texts[-1] if cell_texts else ""
+                    if nome and len(nome) > 3:
+                        partes.append(ParteProcesso(nome=nome.upper(), tipo_parte="REQUERIDO", polo="PASSIVO"))
+
+        # ── Movimentações ─────────────────────────────────────────────
+        movimentacoes: list[MovimentacaoProcesso] = []
+        for tabela in soup.find_all(["table", "div"], class_=re.compile(r"moviment", re.I)):
+            for linha in tabela.find_all(["tr", "li"]):
+                cells = linha.find_all(["td", "span"])
+                if len(cells) >= 2:
+                    data_texto = cells[0].get_text(strip=True)
+                    desc_texto = " ".join(c.get_text(strip=True) for c in cells[1:])
+                    data_mov = self._parse_data_brasileira(data_texto)
+                    if desc_texto and data_mov:
+                        movimentacoes.append(MovimentacaoProcesso(
+                            data_movimentacao=data_mov,
+                            descricao=desc_texto,
+                            tipo="",
+                            impacto="",
+                        ))
+
+        return ProcessoCompleto(
+            numero_cnj=numero_cnj,
+            tribunal=tribunal,
+            comarca=comarca,
+            grau=grau,
+            vara=vara,
+            classe_processual=classe,
+            data_distribuicao=distribuicao,
+            valor_causa=valor,
+            situacao=situacao,
+            partes=partes,
+            movimentacoes=movimentacoes,
+        )
+
+    def _parse_data_brasileira(self, texto: str) -> Optional[datetime]:
+        """Converte data DD/MM/YYYY ou DD/MM/YYYY HH:MM."""
+        if not texto:
+            return None
+        texto = texto.strip()[:16]
+        for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%Y"):
+            try:
+                return datetime.strptime(texto[:len(fmt.replace(" ", ""))], fmt)
+            except ValueError:
+                pass
+        return None
 
     def _parse_lista_api(self, data: Any, tribunal: str) -> list[ProcessoCompleto]:
         """

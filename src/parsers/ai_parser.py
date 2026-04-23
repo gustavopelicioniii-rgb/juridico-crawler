@@ -220,6 +220,91 @@ def _get_client() -> anthropic.AsyncAnthropic:
     return _client
 
 
+async def avaliar_qualidade_com_ai(
+    processo: "ProcessoCompleto",
+) -> tuple[int, list[str]]:
+    """
+    Usa Claude para avaliar a qualidade/completude de um ProcessoCompleto
+    e retornar score 0-100 + notas de auditoria melhoradas.
+
+    Esta função é chamada como enhancement do scoring rule-based do orquestrador.
+    Só é executada quando `usar_ai_audit=True` nas configurações.
+
+    Returns:
+        (score_auditoria, notas_auditoria)
+    """
+    try:
+        client = _get_client()
+    except RuntimeError:
+        # Sem API key, retorna scoring rule-based padrão
+        return processo.score_auditoria or 50, processo.notas_auditoria or []
+
+    # Prepara contexto resumido do processo
+    partes_resumo = [
+        f"- {p.tipo_parte}/{p.polo}: {p.nome[:80]}"
+        + (f" (OAB: {p.oab})" if p.oab else "")
+        for p in (processo.partes or [])
+    ]
+    movs_resumo = [
+        f"- {m.data_movimentacao}: {m.descricao[:100]}"
+        for m in (processo.movimentacoes or [])[:20]
+    ]
+
+    prompt = f"""Você é um auditor de dados processuais jurídicos brasileiros.
+
+Analise o processo abaixo e avalie a QUALIDADE e COMPLETUDE dos dados extraction.
+
+PROCESSO:
+- CNJ: {processo.numero_cnj}
+- Tribunal: {processo.tribunal}
+- Grau: {processo.grau or 'N/A'}
+- Vara: {processo.vara or 'N/A'}
+- Comarca: {processo.comarca or 'N/A'}
+- Classe: {processo.classe_processual or 'N/A'}
+- Assunto: {processo.assunto or 'N/A'}
+- Valor: {processo.valor_causa}
+- Data distribuição: {processo.data_distribuicao}
+- Situação: {processo.situacao or 'N/A'}
+- Segredo: {processo.segredo_justica}
+
+PARTES ({len(processo.partes)}):
+{chr(10).join(partes_resumo) if partes_resumo else 'Nenhuma parte encontrada'}
+
+MOVIMENTAÇÕES ({len(processo.movimentacoes)}):
+{chr(10).join(movs_resumo) if movs_resumo else 'Nenhuma movimentação encontrada'}
+
+Sua tarefa:
+1. Analise se todos os dados essenciais estão presentes e fazem sentido
+2. Identifique lacunas, inconsistências ou dados suspeitos
+3. Dê um score de 0-100 para a qualidade da extração
+4. Liste observações técnicas específicas
+
+Responda EXATAMENTE neste formato JSON (sem markdown, sem texto adicional):
+{{"score": 0-100, "notas": ["nota1", "nota2", ...]}}"""
+
+    try:
+        message = await client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            system="Você é um auditor especialista em extração de dados jurídicos.",
+            messages=[{"role": "user", "content": prompt}],
+        )
+        conteudo = message.content[0].text.strip()
+        if conteudo.startswith("```"):
+            linhas = conteudo.split("\n")
+            conteudo = "\n".join(linhas[1:-1] if linhas[-1] == "```" else linhas[1:])
+
+        import json as _json
+        dados = _json.loads(conteudo)
+        score = max(0, min(100, int(dados.get("score", 50))))
+        notas = dados.get("notas", [])
+        return score, notas
+
+    except Exception as e:
+        logger.warning("AI audit falhou para %s: %s — usando score default", processo.numero_cnj, e)
+        return processo.score_auditoria or 50, processo.notas_auditoria or []
+
+
 PROMPT_SISTEMA = """Você é um especialista em direito brasileiro e extração de dados jurídicos.
 Analise o JSON bruto de um processo judicial e extraia as informações estruturadas com precisão.
 

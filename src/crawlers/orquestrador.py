@@ -9,6 +9,8 @@ import structlog
 from typing import Optional
 
 from src.parsers.estruturas import ProcessoCompleto
+from src.parsers.ai_parser import avaliar_qualidade_com_ai
+from src.config import settings
 
 # Imports dos Crawlers Nativos
 from src.crawlers.tjsp import TJSPCrawler
@@ -291,6 +293,27 @@ class OrquestradorNativo:
                     
                 p.score_auditoria = max(0, min(100, pontos))
                 p.notas_auditoria = notas
+
+            # ===== AUDITORIA AI (enhancement opcional) =====
+            # Se USAR_AI_AUDIT=true, usa Claude para análise mais profunda
+            if settings.usar_ai_audit and settings.anthropic_api_key:
+                logger.info("Iniciando auditoria AI para %d processos...", len(processos_coletados))
+                for p in processos_coletados:
+                    try:
+                        ai_score, ai_notas = await avaliar_qualidade_com_ai(p)
+                        # Combina scoring: média ponderada (60% rule-based, 40% AI)
+                        if p.score_auditoria is not None:
+                            p.score_auditoria = int(p.score_auditoria * 0.6 + ai_score * 0.4)
+                        else:
+                            p.score_auditoria = ai_score
+                        # Adiciona notas AI como suffix
+                        if ai_notas:
+                            p.notas_auditoria = (p.notas_auditoria or []) + [
+                                f"[AI] {n}" for n in ai_notas
+                            ]
+                        logger.debug("AI audit %s: score=%d", p.numero_cnj, p.score_auditoria)
+                    except Exception as e:
+                        logger.debug("AI audit falhou para %s: %s", p.numero_cnj, e)
             # ===== FIM DA AUDITORIA =====
 
             logger.info(f"Orquestrador Master Finalizado: {len(processos_coletados)} processos unicos coletados sem depender do DataJud.")

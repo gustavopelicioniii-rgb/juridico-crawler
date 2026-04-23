@@ -1273,82 +1273,33 @@ async def run_migrations(_: dict = Depends(require_admin)):
 
 
 # ============================================================================
-# DASHBOARD
+# DASHBOARD SPA
 # ============================================================================
+
+import os
+import pathlib
+
+_dashboard_path = pathlib.Path(__file__).parent.parent / "dashboard" / "public"
+
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard():
-    """Dashboard da API."""
-    return """
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Sistema Jurídico - Fase 1</title>
-        <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                padding: 20px;
-            }
-            .container { max-width: 1000px; margin: 0 auto; }
-            h1 { color: white; text-align: center; margin-bottom: 30px; }
-            .card {
-                background: white;
-                border-radius: 8px;
-                padding: 20px;
-                margin-bottom: 20px;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            }
-            .card h2 { color: #667eea; margin-bottom: 10px; }
-            .endpoint {
-                background: #f5f5f5;
-                padding: 10px;
-                margin: 5px 0;
-                border-left: 3px solid #667eea;
-                font-family: monospace;
-                font-size: 14px;
-            }
-            .status { color: #28a745; font-weight: bold; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>🚀 Sistema de Monitoramento Jurídico - Fase 1</h1>
-
-            <div class="card">
-                <h2>✅ Status</h2>
-                <p><span class="status">API Online</span> - Pronta para uso</p>
-            </div>
-
-            <div class="card">
-                <h2>🔐 Autenticação</h2>
-                <div class="endpoint">POST /api/auth/login</div>
-                <div class="endpoint">POST /api/auth/refresh</div>
-                <div class="endpoint">POST /api/auth/register</div>
-                <div class="endpoint">GET /api/auth/me</div>
-                <div class="endpoint">POST /api/auth/change-password</div>
-            </div>
-
-            <div class="card">
-                <h2>📊 Endpoints de Dados</h2>
-                <div class="endpoint">GET /api/processos</div>
-                <div class="endpoint">GET /api/processos/{id}</div>
-                <div class="endpoint">GET /api/notificacoes</div>
-                <div class="endpoint">GET /api/prazos</div>
-                <div class="endpoint">POST /api/buscar/oab</div>
-                <div class="endpoint">GET /api/buscar/cnj/{numero_cnj}</div>
-            </div>
-
-            <div class="card">
-                <h2>📖 Documentação</h2>
-                <div class="endpoint"><a href="/docs" style="color: #667eea; text-decoration: none;">📘 Swagger UI (Interativo)</a></div>
-                <div class="endpoint"><a href="/redoc" style="color: #667eea; text-decoration: none;">📕 ReDoc</a></div>
-            </div>
-        </div>
-    </body>
-    </html>
     """
+    Dashboard SPA — interface web completa para o sistema jurídico.
+
+    O dashboard em dashboard/public/index.html consome a própria API REST
+    (configurável na barra lateral). Ele substitui completamente o HTML
+    hardcoded anterior.
+    """
+    index_path = _dashboard_path / "index.html"
+    if index_path.exists():
+        return HTMLResponse(content=index_path.read_text(encoding="utf-8"), status_code=200)
+    # Fallback: se o dashboard não estiver implantado
+    return HTMLResponse(content="""<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>JurídicoCrawler API</title></head>
+<body style="font-family:sans-serif;background:#0a1628;color:#e2e8f0;display:flex;align-items:center;
+justify-content:center;height:100vh;margin:0;">
+<div style="text-align:center">
+  <h1 style="color:#818cf8">⚖️ JurídicoCrawler API</h1>
+  <p>API no ar! Acesse <a href="/docs" style="color:#a5b4fc">Swagger UI</a> para testar os endpoints.</p>
+</div></body></html>""", status_code=200)

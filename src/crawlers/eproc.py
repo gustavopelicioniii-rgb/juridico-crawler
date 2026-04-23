@@ -18,7 +18,12 @@ from datetime import date, datetime
 from typing import Any, Optional
 
 from src.crawlers.base import BaseCrawler
-from src.parsers.estruturas import MovimentacaoProcesso, ParteProcesso, ProcessoCompleto
+from src.parsers.estruturas import (
+    MovimentacaoProcesso,
+    ParteProcesso,
+    ProcessoCompleto,
+    inferir_grau_cnj,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -215,9 +220,15 @@ class EProcCrawler(BaseCrawler):
                 except ValueError:
                     pass
 
+            # Tenta extrair comarca do trecho
+            comarca_m = re.search(r"Comarca[:\s]+([A-Za-zÀ-ÿ\s]+?)(?:/|$|\n|,)", trecho)
+            comarca = comarca_m.group(1).strip() if comarca_m else None
+
             processos.append(ProcessoCompleto(
                 numero_cnj=numero,
                 tribunal=tribunal,
+                grau=inferir_grau_cnj(numero),
+                comarca=comarca,
                 data_distribuicao=data_dist,
             ))
 
@@ -234,41 +245,87 @@ class EProcCrawler(BaseCrawler):
                 return n.text(strip=True) if n else None
 
             partes: list[ParteProcesso] = []
+            comarca = None
+            vara = None
+            classe = None
+            data_dist = None
+            valor = None
+            situacao = None
 
-            # eProc lista partes em tabela com labels Autor/Réu/Advogado
+            # Extrai campos do formulário/detalhes
             for row in tree.css("tr"):
                 cells = row.css("td")
                 if len(cells) < 2:
                     continue
                 label = cells[0].text(strip=True).upper().rstrip(":")
-                valor = cells[1].text(strip=True)
-                if not valor or label not in {
+                valor_txt = cells[1].text(strip=True)
+
+                if not valor_txt:
+                    continue
+
+                # Partes
+                if label in {
                     "AUTOR", "RÉU", "REU", "ADVOGADO", "EXEQUENTE",
                     "EXECUTADO", "APELANTE", "APELADO", "RECLAMANTE", "RECLAMADO"
                 }:
-                    continue
+                    polo = "ATIVO" if label in ("AUTOR", "EXEQUENTE", "APELANTE", "RECLAMANTE") else (
+                        "PASSIVO" if label in ("RÉU", "REU", "EXECUTADO", "APELADO", "RECLAMADO") else "OUTROS"
+                    )
+                    oab = None
+                    oab_m = re.search(r"OAB[/\s]*(\w{2})\s*(\d+)", valor_txt, re.IGNORECASE)
+                    if oab_m:
+                        oab = f"{oab_m.group(2)}{oab_m.group(1).upper()}"
+                        nome_limpo = re.sub(r"\s*[-–]\s*OAB[/\s]*\w{2}\s*\d+", "", valor_txt, flags=re.IGNORECASE).strip()
+                    else:
+                        nome_limpo = valor_txt
 
-                polo = "ATIVO" if label in ("AUTOR", "EXEQUENTE", "APELANTE", "RECLAMANTE") else (
-                    "PASSIVO" if label in ("RÉU", "REU", "EXECUTADO", "APELADO", "RECLAMADO") else "OUTROS"
-                )
-                oab = None
-                oab_m = re.search(r"OAB[/\s]*(\w{2})\s*(\d+)", valor, re.IGNORECASE)
-                if oab_m:
-                    oab = f"{oab_m.group(2)}{oab_m.group(1).upper()}"
-                    valor = re.sub(r"\s*[-–]\s*OAB[/\s]*\w{2}\s*\d+", "", valor, flags=re.IGNORECASE).strip()
-
-                partes.append(ParteProcesso(
-                    nome=valor.upper(),
-                    tipo_parte=label,
-                    polo=polo,
-                    oab=oab,
-                ))
+                    partes.append(ParteProcesso(
+                        nome=nome_limpo.upper(),
+                        tipo_parte=label,
+                        polo=polo,
+                        oab=oab,
+                    ))
+                else:
+                    # Dados processuais
+                    if "COMARCA" in label or "FORO" in label:
+                        comarca = valor_txt
+                    elif "VARA" in label or "ÓRGÃO" in label:
+                        vara = valor_txt
+                    elif "CLASSE" in label:
+                        classe = valor_txt
+                    elif "DATA" in label and "DISTRIBUI" in label:
+                        m = re.search(r"(\d{2}/\d{2}/\d{4})", valor_txt)
+                        if m:
+                            try:
+                                data_dist = datetime.strptime(m.group(1), "%d/%m/%Y").date()
+                            except ValueError:
+                                pass
+                    elif "VALOR" in label:
+                        valor_m = re.search(r"[R$]\s*([\d\.,]+)", valor_txt)
+                        if valor_m:
+                            try:
+                                valor = float(valor_m.group(1).replace(".", "").replace(",", "."))
+                            except ValueError:
+                                pass
+                    elif "SITUAÇÃO" in label or "STATUS" in label:
+                        situacao = valor_txt
 
             return ProcessoCompleto(
                 numero_cnj=numero_cnj,
                 tribunal=tribunal,
+                grau=inferir_grau_cnj(numero_cnj),
+                comarca=comarca,
+                vara=vara,
+                classe_processual=classe,
+                data_distribuicao=data_dist,
+                valor_causa=valor,
+                situacao=situacao,
                 partes=partes,
             )
         except Exception as e:
             logger.error("eProc parse detalhe %s: %s", numero_cnj, e)
-            return ProcessoCompleto(numero_cnj=numero_cnj, tribunal=tribunal)
+            return ProcessoCompleto(
+                numero_cnj=numero_cnj,
+                tribunal=tribunal,
+                grau=inferir_grau_cnj(numero_cnj),
+            )

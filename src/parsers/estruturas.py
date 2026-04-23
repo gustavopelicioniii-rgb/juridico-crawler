@@ -3,10 +3,39 @@ Dataclasses de saída padronizadas para dados de processos judiciais.
 Usadas pelo AI Parser e pelos crawlers.
 """
 
+import re
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from typing import Optional
+
+
+def inferir_grau_cnj(numero_cnj: str) -> str:
+    """
+    Infere o grau do processo (G1, G2, RECURSAL, ORIGINARIO) a partir do número CNJ.
+
+    Formato CNJ: NNNNNNN-DD.YYYY.N.NN.NNNN
+    - Dígito 9 (0-indexed = posição 9) indica o grau:
+      1 = G1 (Primeiro Grau)
+      2 = G2 (Segundo Grau)
+      3 = RECURSAL
+      4+ = ORIGINARIO ou instâncias superiores
+    """
+    if not numero_cnj:
+        return "G1"
+    digits = re.sub(r"[^0-9]", "", numero_cnj)
+    if len(digits) >= 10:
+        grau_digit = digits[9]
+        mapping = {
+            "1": "G1",
+            "2": "G2",
+            "3": "RECURSAL",
+            "4": "ORIGINARIO",
+            "5": "ORIGINARIO",
+            "6": "ORIGINARIO",
+        }
+        return mapping.get(grau_digit, "G1")
+    return "G1"
 
 
 @dataclass
