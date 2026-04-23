@@ -12,6 +12,7 @@ from datetime import date, datetime
 from bs4 import BeautifulSoup
 
 from src.crawlers.base import BaseCrawler
+from src.crawlers.pje_jsf_client import buscar_oab_jsf
 from src.parsers.estruturas import (
     MovimentacaoProcesso,
     ParteProcesso,
