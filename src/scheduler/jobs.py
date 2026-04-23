@@ -267,6 +267,22 @@ def criar_scheduler() -> AsyncIOScheduler:
         misfire_grace_time=3600,  # Tolerância de 1 hora para atrasos
     )
 
+    # Health check diário — 06:00 todos os dias
+    # Verifica se cada tribunal ainda está retornando resultados
+    def _health_check_job():
+        import asyncio
+        from src.scheduler.health_check import health_check_diario
+        return asyncio.run(health_check_diario())
+
+    scheduler.add_job(
+        _health_check_job,
+        trigger=CronTrigger(hour=6, minute=0, timezone="America/Sao_Paulo"),
+        id="health_check_diario",
+        name="Health check diário dos tribunais",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+
     _scheduler = scheduler
     return scheduler
 
