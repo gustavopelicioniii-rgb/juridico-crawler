@@ -14,18 +14,21 @@ def inferir_grau_cnj(numero_cnj: str) -> str:
     """
     Infere o grau do processo (G1, G2, RECURSAL, ORIGINARIO) a partir do número CNJ.
 
-    Formato CNJ: NNNNNNN-DD.YYYY.N.NN.NNNN
-    - Dígito 9 (0-indexed = posição 9) indica o grau:
-      1 = G1 (Primeiro Grau)
-      2 = G2 (Segundo Grau)
+    Formato CNJ: NNNNNNN-DD.YYYY.S.GG.NNNNN
+    - Posição 13 (0-indexed no string sem formatação) = segmento S:
+      1 = G1 (CNJ padrão: STJ, TURMAS ESPECIALIZADAS)
+      2 = G2 (CNJ padrão: segundo grau)
       3 = RECURSAL
-      4+ = ORIGINARIO ou instâncias superiores
+      4+ = ORIGINARIO / instâncias superiores
+      7 = G2 (código eSAJ/TJSP: segundo grau)
+      8 = G1 (código eSAJ/TJSP: primeiro grau)
     """
     if not numero_cnj:
         return "G1"
     digits = re.sub(r"[^0-9]", "", numero_cnj)
-    if len(digits) >= 10:
-        grau_digit = digits[9]
+    # CNJ mínimo tem 20 dígitos; o segmento está na posição 13
+    if len(digits) >= 14:
+        segmento = digits[13]
         mapping = {
             "1": "G1",
             "2": "G2",
@@ -33,8 +36,11 @@ def inferir_grau_cnj(numero_cnj: str) -> str:
             "4": "ORIGINARIO",
             "5": "ORIGINARIO",
             "6": "ORIGINARIO",
+            # Códigos eSAJ (TJSP e outros TJs)
+            "7": "G2",   # eSAJ: segundo grau
+            "8": "G1",   # eSAJ: primeiro grau
         }
-        return mapping.get(grau_digit, "G1")
+        return mapping.get(segmento, "G1")
     return "G1"
 
 
