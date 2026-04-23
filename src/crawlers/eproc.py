@@ -130,6 +130,20 @@ class EProcCrawler(BaseCrawler):
             try:
                 resp = await self._get(url, params=params)
                 html = resp.text
+
+                # ── CAPTCHA: verificar se a página contém reCAPTCHA ──
+                if self.captcha_solver and ("recaptcha" in html.lower() or "g-recaptcha" in html.lower()):
+                    sitekey_match = re.search(r"sitekey[:\s]*['\"]?([A-Za-z0-9_-]{40,})", html)
+                    if sitekey_match:
+                        sitekey = sitekey_match.group(1)
+                        logger.info("eProc %s: reCAPTCHA detectado, resolvendo...", tribunal)
+                        token = await self.captcha_solver.resolve_recaptcha_v2(sitekey, url)
+                        if token:
+                            # Reenviar com o token g-recaptcha-response
+                            params = {**params, "g-recaptcha-response": token}
+                            resp = await self._get(url, params=params)
+                            html = resp.text
+
                 processos_pagina = self._parse_lista(html, tribunal)
                 if processos_pagina:
                     resultados.extend(processos_pagina)

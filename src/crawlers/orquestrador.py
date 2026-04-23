@@ -22,6 +22,18 @@ from src.crawlers.trf import TRFCrawler
 from src.crawlers.stj import STJCrawler
 from src.crawlers.tst import TSTCrawler
 
+# Solver de CAPTCHA (2Captcha) — usado quando a chave está configurada e tem saldo
+_captcha_solver: Optional["TwoCaptchaSolver"] = None
+
+def _get_captcha_solver() -> Optional["TwoCaptchaSolver"]:
+    """Retorna singleton do solver de CAPTCHA (lazy init)."""
+    global _captcha_solver
+    if _captcha_solver is None and settings.twocaptcha_api_key:
+        from src.crawlers.twocaptcha_solver import TwoCaptchaSolver
+        _captcha_solver = TwoCaptchaSolver(api_key=settings.twocaptcha_api_key)
+        logger.info("2Captcha solver ativado")
+    return _captcha_solver
+
 logger = structlog.get_logger(__name__)
 
 class OrquestradorNativo:
@@ -123,7 +135,8 @@ class OrquestradorNativo:
         async def scrape_eproc():
             if not alvos_eproc: return []
             try:
-                async with EProcCrawler(verify_ssl=False) as crawler:
+                solver = _get_captcha_solver()
+                async with EProcCrawler(verify_ssl=False, captcha_solver=solver) as crawler:
                     return await crawler.buscar_por_oab(
                         numero_oab=numero_oab, 
                         uf_oab=uf_oab, 

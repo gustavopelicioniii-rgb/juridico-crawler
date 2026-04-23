@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     datajud_api_key: Optional[str] = Field(None, validation_alias=AliasChoices("DATAJUD_API_KEY", "datajud_api_key"))
     datajud_base_url: str = Field("https://api-publica.datajud.cnj.jus.br", validation_alias=AliasChoices("DATAJUD_BASE_URL", "datajud_base_url"))
     firecrawl_api_key: Optional[str] = Field(None, validation_alias=AliasChoices("FIRECRAWL_API_KEY", "firecrawl_api_key"))
+    twocaptcha_api_key: Optional[str] = Field(None, validation_alias=AliasChoices("TWOCAPTCHA_API_KEY", "twocaptcha_api_key"))
+    # Nota: a chave só funciona se a conta 2Captcha tiver saldo. Sem saldo, o solver retorna None.
 
     # --- Crawlers ---
     tjsp_enabled: bool = Field(True, validation_alias=AliasChoices("TJSP_ENABLED", "tjsp_enabled"))
