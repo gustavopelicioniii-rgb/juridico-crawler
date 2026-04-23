@@ -5,10 +5,11 @@ Sistema de crawling jurídico que consulta processos no DataJud (API oficial do 
 ## Funcionalidades
 
 - **DataJud CNJ**: Consulta via API pública oficial (sem cadastro)
-- **TJSP**: Scraping do sistema eSaj
-- **PJe**: Suporte genérico ao sistema PJe
+- **TJSP**: Scraping do sistema eSaj (com suporte a OAB)
+- **Multi-Tenant**: Múltiplas contas de escritório com isolamento
 - **AI Parser**: Extração inteligente de dados via Claude (Anthropic)
 - **Monitoramento**: Atualização automática diária de processos
+- **Auditoria**: Score de qualidade 0-100 para cada extração
 - **API REST**: Endpoints completos para consulta e gerenciamento
 
 ## Início Rápido
@@ -49,72 +50,100 @@ cp .env.example .env
 docker-compose up -d db
 
 # 5. Rodar a aplicação
-uvicorn src.main:app --reload
+uvicorn main:app --reload
 ```
 
 ## API Endpoints
 
+### Autenticação
+
+| Método | Rota | Descrição | Auth |
+|--------|------|-----------|------|
+| `POST` | `/api/auth/login` | Login com email + senha | ❌ |
+| `POST` | `/api/auth/refresh` | Renovar access token | ❌ |
+| `POST` | `/api/auth/register` | Criar usuário (admin) | ✅ |
+| `GET` | `/api/auth/me` | Dados do usuário | ✅ |
+| `POST` | `/api/auth/change-password` | Alterar senha | ✅ |
+
 ### Processos
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/processos/buscar` | Busca processo por número CNJ |
-| `GET` | `/processos/{numero_cnj}` | Retorna processo do banco |
-| `GET` | `/processos/` | Lista processos com filtros |
-| `DELETE` | `/processos/{id}` | Remove processo |
+| Método | Rota | Descrição | Auth |
+|--------|------|-----------|------|
+| `GET` | `/api/processos` | Lista processos (paginado) | ❌ |
+| `GET` | `/api/processos/{id}` | Detalhes de processo | ❌ |
+| `POST` | `/api/buscar/oab` | Busca por OAB + UF | ❌ |
+| `GET` | `/api/buscar/cnj/{numero_cnj}` | Busca por CNJ (DataJud) | ❌ |
 
-### Partes
+### Dados
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `GET` | `/partes/processo/{processo_id}` | Lista partes de um processo |
-| `GET` | `/partes/buscar?nome=...` | Busca por nome |
-| `GET` | `/partes/buscar?oab=...` | Busca por OAB |
+| Método | Rota | Descrição | Auth |
+|--------|------|-----------|------|
+| `GET` | `/api/notificacoes` | Lista notificações | ❌ |
+| `GET` | `/api/prazos` | Lista prazos | ❌ |
 
-### Monitoramento
+### Sistema
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/monitoramento/` | Ativa monitoramento de processo |
-| `GET` | `/monitoramento/` | Lista monitoramentos ativos |
-| `DELETE` | `/monitoramento/{id}` | Remove monitoramento |
+| Método | Rota | Descrição | Auth |
+|--------|------|-----------|------|
+| `GET` | `/health` | Health check | ❌ |
+| `POST` | `/api/migrations/run` | Executar migrations | ✅ Admin |
 
 ## Exemplo de Uso
 
 ```bash
-# Buscar e indexar um processo
-curl -X POST "http://localhost:8000/processos/buscar" \
+# Login
+curl -X POST "http://localhost:8000/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"numero_cnj": "0001234-56.2024.8.26.0001", "tribunal": "tjsp"}'
+  -d '{"email": "usuario@email.com", "password": "senha", "tenant_numero_oab": "361329"}'
 
-# Consultar partes
-curl "http://localhost:8000/partes/processo/1"
+# Buscar por OAB (ex: 361329/SP)
+curl -X POST "http://localhost:8000/api/buscar/oab" \
+  -H "Content-Type: application/json" \
+  -d '{"numero_oab": "361329", "uf_oab": "SP"}'
 
-# Buscar advogado por OAB
-curl "http://localhost:8000/partes/buscar?oab=123456SP"
+# Buscar por CNJ
+curl "http://localhost:8000/api/buscar/cnj/0001234-56.2024.8.26.0001"
+
+# Listar processos
+curl "http://localhost:8000/api/processos?skip=0&limit=10"
 ```
 
-## Tribunais Suportados
-
-O sistema suporta 90+ tribunais via DataJud. Os principais:
+## Tribunais Suportados (via scrapers nativos)
 
 - **TJSP** - Tribunal de Justiça de São Paulo
+- **TJMG** - Tribunal de Justiça de Minas Gerais
 - **TJRJ** - Tribunal de Justiça do Rio de Janeiro
 - **TRF1 a TRF6** - Tribunais Regionais Federais
 - **TRT1 a TRT24** - Tribunais Regionais do Trabalho
 - **STJ** - Superior Tribunal de Justiça
-- **STF** - Supremo Tribunal Federal
 - **TST** - Tribunal Superior do Trabalho
+- **eProc** - Sistema eProc (TRF4, TRT4, TJRO, TJAC)
+- **PJe** - Sistema PJe (Suporte genérico)
+- **eSAJ** - Sistema eSAJ (Genérico)
+- **ProJudi** - Sistema ProJudi
 
 ## Variáveis de Ambiente
 
 | Variável | Descrição | Padrão |
 |----------|-----------|--------|
 | `DATABASE_URL` | URL do PostgreSQL | `postgresql+asyncpg://...` |
-| `DATAJUD_API_KEY` | Chave pública CNJ | (incluída) |
 | `ANTHROPIC_API_KEY` | Chave Claude API | *obrigatória* |
-| `CRAWLER_REQUESTS_PER_MINUTE` | Rate limit | `30` |
+| `DATAJUD_API_KEY` | Chave pública CNJ | (incluída) |
+| `API_SECRET_KEY` | Chave para JWT | (mudar em prod) |
+| `API_ENVIRONMENT` | `development` ou `production` | `development` |
+| `FRONTEND_ORIGINS` | Origins permitidas para CORS | `localhost:3333` |
+| `SCHEDULER_ENABLED` | Ativar scheduler | `true` |
 | `SCHEDULER_CRON_HORA` | Hora do job diário | `2` |
+| `CRAWLER_REQUESTS_PER_MINUTE` | Rate limit por tribunal | `30` |
+
+## Documentação
+
+- `docs/AUDITORIA.md` - Auditoria completa de segurança
+- `docs/API_REST_DOCS.md` - Documentação da API REST
+- `docs/BLOCO_1_PERSISTENCIA.md` - Arquitetura de persistência
+- `docs/BLOCO_2_SCHEDULER.md` - Arquitetura do scheduler
+- `docs/BLOCO_3_MOTOR_DE_PRAZOS.md` - Motor de prazos
+- `docs/WORKFLOW_COMPLETO.md` - Workflow completo do sistema
 
 ## Licença
 
