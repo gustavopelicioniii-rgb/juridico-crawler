@@ -26,6 +26,10 @@ pydantic-settings==2.7.0
 # --- Autenticação & Segurança ---
 PyJWT==2.8.0
 bcrypt==4.1.3
+slowapi==0.1.9
+
+# --- SQL utils ---
+sqlparse==0.5.3
 
 # --- Scheduler ---
 apscheduler==3.10.4

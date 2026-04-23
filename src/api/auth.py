@@ -6,11 +6,16 @@ API Routes para Autenticação Multi-Tenant
 - GET /api/auth/me - Dados do usuário autenticado
 - POST /api/auth/change-password - Altera senha
 """
+import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.api.rate_limit import limiter
+
+logger = logging.getLogger(__name__)
 
 from src.auth import jwt_handler, password_hasher, TokenError
 from src.database.connection import get_db
@@ -34,7 +39,7 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # ============================================================================
 
 async def get_current_user(
-    authorization: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
     """
@@ -82,23 +87,17 @@ async def get_current_user(
 # ============================================================================
 
 @router.post("/login", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")
 async def login(
-    request: LoginRequest,
+    request: Request,
+    payload: LoginRequest,
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Autentica um usuário e retorna access + refresh tokens
-
-    Args:
-        request: LoginRequest com email, password, tenant_numero_oab
-
-    Returns:
-        TokenResponse com tokens e dados do usuário
-    """
+    """Autentica um usuário e retorna access + refresh tokens."""
     try:
         # Buscar tenant por número OAB
         query = select(TenantAccount).where(
-            TenantAccount.numero_oab == request.tenant_numero_oab
+            TenantAccount.numero_oab == payload.tenant_numero_oab
         )
         result = await session.execute(query)
         tenant = result.scalar_one_or_none()
@@ -112,8 +111,8 @@ async def login(
         # Autenticar usuário
         user = await UserService.authenticate_user(
             session=session,
-            email=request.email,
-            password=request.password,
+            email=payload.email,
+            password=payload.password,
             tenant_id=tenant.id,
         )
 
@@ -152,26 +151,20 @@ async def login(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
+        logger.exception("Erro ao fazer login")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao fazer login: {str(e)}",
+            detail="Erro interno ao processar login",
         )
 
 
 @router.post("/refresh", response_model=dict, status_code=status.HTTP_200_OK)
-async def refresh_token(request: RefreshTokenRequest):
-    """
-    Gera um novo access token usando o refresh token
-
-    Args:
-        request: RefreshTokenRequest com refresh_token
-
-    Returns:
-        {"access_token": str, "expires_in": int}
-    """
+@limiter.limit("20/minute")
+async def refresh_token(request: Request, payload: RefreshTokenRequest):
+    """Gera um novo access token usando o refresh token."""
     try:
-        access_token = jwt_handler.refresh_access_token(request.refresh_token)
+        access_token = jwt_handler.refresh_access_token(payload.refresh_token)
 
         return {
             "access_token": access_token,
@@ -187,22 +180,14 @@ async def refresh_token(request: RefreshTokenRequest):
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def register(
-    request: CreateUserRequest,
+    request: Request,
+    payload: CreateUserRequest,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Cria um novo usuário no tenant (requer admin)
-
-    Args:
-        request: CreateUserRequest
-        current_user: Usuário autenticado (deve ser admin)
-
-    Returns:
-        UserResponse com dados do novo usuário
-    """
-    # Verificar se é admin
+    """Cria um novo usuário no tenant (requer admin)."""
     if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -212,11 +197,11 @@ async def register(
     try:
         user = await UserService.create_user(
             session=session,
-            email=request.email,
-            password=request.password,
-            name=request.name,
+            email=payload.email,
+            password=payload.password,
+            name=payload.name,
             tenant_id=current_user["tenant_id"],
-            role=request.role or "user",
+            role=payload.role or "user",
         )
 
         await session.commit()
@@ -235,11 +220,12 @@ async def register(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
+    except Exception:
         await session.rollback()
+        logger.exception("Erro ao criar usuário")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao criar usuário: {str(e)}",
+            detail="Erro interno ao criar usuário",
         )
 
 
@@ -278,36 +264,30 @@ async def get_current_user_info(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
+        logger.exception("Erro ao buscar usuário")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao buscar usuário: {str(e)}",
+            detail="Erro interno ao buscar usuário",
         )
 
 
 @router.post("/change-password", response_model=dict, status_code=status.HTTP_200_OK)
+@limiter.limit("5/minute")
 async def change_password(
-    request: ChangePasswordRequest,
+    request: Request,
+    payload: ChangePasswordRequest,
     current_user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ):
-    """
-    Altera a senha do usuário autenticado
-
-    Args:
-        request: ChangePasswordRequest com old_password e new_password
-        current_user: Usuário autenticado
-
-    Returns:
-        {"status": "ok", "message": "Senha alterada com sucesso"}
-    """
+    """Altera a senha do usuário autenticado."""
     try:
         await UserService.change_password(
             session=session,
             user_id=current_user["user_id"],
             tenant_id=current_user["tenant_id"],
-            old_password=request.old_password,
-            new_password=request.new_password,
+            old_password=payload.old_password,
+            new_password=payload.new_password,
         )
 
         await session.commit()
@@ -322,9 +302,10 @@ async def change_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-    except Exception as e:
+    except Exception:
         await session.rollback()
+        logger.exception("Erro ao alterar senha")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao alterar senha: {str(e)}",
+            detail="Erro interno ao alterar senha",
         )

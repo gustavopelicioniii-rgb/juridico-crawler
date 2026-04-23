@@ -5,20 +5,47 @@ Fase 1: Backend com JWT + PostgreSQL + RLS
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
-
-logger = logging.getLogger(__name__)
-
-from fastapi import FastAPI, HTTPException, Query, Depends, BackgroundTasks
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
 from typing import Optional
 
-from src.database.connection import create_tables
-from src.api.auth import router as auth_router
-from src.database.connection import AsyncSessionLocal
+import structlog
+from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from src.database.models import Processo, Notificacao, Prazo
+
+from src.api.auth import get_current_user, router as auth_router
+from src.api.rate_limit import limiter
+from src.config import settings
+from src.database.connection import AsyncSessionLocal, create_tables
+from src.database.models import Notificacao, Prazo, Processo
+
+
+def _configure_structlog() -> None:
+    """Pipeline único para logging tanto do stdlib quanto do structlog."""
+    level = logging.DEBUG if settings.api_debug else logging.INFO
+    logging.basicConfig(level=level, format="%(message)s")
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.format_exc_info,
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(level),
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+
+_configure_structlog()
+logger = structlog.get_logger(__name__)
 
 scheduler = None
 
@@ -26,22 +53,48 @@ scheduler = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup e shutdown da aplicação."""
-    print("\n" + "="*70)
-    print("🚀 INICIANDO API - FASE 1 MULTI-TENANT")
-    print("="*70)
+    global scheduler
+
+    logger.info("api.startup", phase="begin", version="1.0.0", env=settings.api_environment)
 
     try:
         await create_tables()
-        print("✅ Banco de dados: OK")
-        print("✅ Auth router: OK")
-        print("="*70 + "\n")
-    except Exception as e:
-        print(f"❌ Erro ao iniciar: {e}")
+        logger.info("api.startup", phase="db_ready")
+    except Exception:
+        logger.exception("api.startup.failure")
         raise
+
+    # Inicia o scheduler somente se explicitamente habilitado (evita duplicar
+    # jobs quando múltiplos workers do Uvicorn/Gunicorn subirem a mesma app).
+    scheduler_enabled = getattr(settings, "scheduler_enabled", True)
+    if scheduler_enabled:
+        try:
+            from src.scheduler.jobs import criar_scheduler
+
+            scheduler = criar_scheduler()
+            scheduler.start()
+            logger.info(
+                "api.startup",
+                phase="scheduler_started",
+                cron=f"{settings.scheduler_cron_hora:02d}:{settings.scheduler_cron_minuto:02d}",
+            )
+        except Exception:
+            logger.exception("api.startup.scheduler_failure")
+    else:
+        logger.info("api.startup", phase="scheduler_disabled")
+
+    logger.info("api.startup", phase="ready")
 
     yield
 
-    print("\n✅ API finalizada")
+    if scheduler is not None:
+        try:
+            scheduler.shutdown(wait=False)
+            logger.info("api.shutdown", phase="scheduler_stopped")
+        except Exception:
+            logger.exception("api.shutdown.scheduler_failure")
+
+    logger.info("api.shutdown", phase="done")
 
 
 app = FastAPI(
@@ -51,8 +104,36 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Incluir router de autenticação
+# ----------------------------------------------------------------------------
+# Middleware & error handlers
+# ----------------------------------------------------------------------------
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Routers
 app.include_router(auth_router)
+
+
+# ============================================================================
+# DEPENDENCIES
+# ============================================================================
+
+async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
+    """Garante que o usuário autenticado é admin."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Operação restrita a administradores",
+        )
+    return current_user
 
 
 # ============================================================================
@@ -64,7 +145,7 @@ async def health():
     """Health check da API."""
     return {
         "status": "ok",
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.utcnow().isoformat(),
         "version": "1.0.0",
     }
 
@@ -103,8 +184,9 @@ async def listar_processos(
             "skip": skip,
             "limit": limit,
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("processos.listar.failure")
+        raise HTTPException(status_code=500, detail="Erro interno ao listar processos")
 
 
 @app.get("/api/processos/{processo_id}", tags=["processos"])
@@ -131,8 +213,9 @@ async def obter_processo(
         }
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("processos.obter.failure", processo_id=processo_id)
+        raise HTTPException(status_code=500, detail="Erro interno ao obter processo")
 
 
 # ============================================================================
@@ -147,7 +230,12 @@ async def listar_notificacoes(
 ):
     """Lista notificações."""
     try:
-        query = select(Notificacao).order_by(Notificacao.criado_em.desc()).offset(skip).limit(limit)
+        query = (
+            select(Notificacao)
+            .order_by(Notificacao.criado_em.desc())
+            .offset(skip)
+            .limit(limit)
+        )
         result = await session.execute(query)
         notificacoes = result.scalars().all()
 
@@ -167,8 +255,9 @@ async def listar_notificacoes(
             ],
             "total": total,
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("notificacoes.listar.failure")
+        raise HTTPException(status_code=500, detail="Erro interno ao listar notificações")
 
 
 # ============================================================================
@@ -203,8 +292,9 @@ async def listar_prazos(
             ],
             "total": total,
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("prazos.listar.failure")
+        raise HTTPException(status_code=500, detail="Erro interno ao listar prazos")
 
 
 # ============================================================================
@@ -245,8 +335,11 @@ async def buscar_por_oab(
                 try:
                     await svc.salvar_processo(proc)
                     salvos += 1
-                except Exception as e:
-                    logger.warning("Erro ao salvar processo %s: %s", proc.numero_cnj, e)
+                except Exception:
+                    logger.warning(
+                        "processos.salvar.failure",
+                        numero_cnj=proc.numero_cnj,
+                    )
             await session.commit()
 
         return {
@@ -268,9 +361,13 @@ async def buscar_por_oab(
                 for p in processos
             ],
         }
-    except Exception as e:
-        logger.error("Erro na busca por OAB %s/%s: %s", req.numero_oab, req.uf_oab, e)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception(
+            "busca.oab.failure",
+            numero_oab=req.numero_oab,
+            uf_oab=req.uf_oab,
+        )
+        raise HTTPException(status_code=500, detail="Erro interno ao buscar por OAB")
 
 
 @app.get("/api/buscar/cnj/{numero_cnj}", tags=["busca"])
@@ -279,9 +376,7 @@ async def buscar_por_cnj(
     tribunal: Optional[str] = Query(None),
     session: AsyncSession = Depends(AsyncSessionLocal),
 ):
-    """
-    Busca um processo específico pelo número CNJ via DataJud.
-    """
+    """Busca um processo específico pelo número CNJ via DataJud."""
     from src.crawlers.datajud import DataJudCrawler
     from src.services.processo_service import ProcessoService
 
@@ -306,7 +401,10 @@ async def buscar_por_cnj(
             "vara": proc.vara,
             "classe_processual": proc.classe_processual,
             "situacao": proc.situacao,
-            "partes": [{"nome": p.nome, "tipo": p.tipo_parte, "polo": p.polo} for p in proc.partes],
+            "partes": [
+                {"nome": p.nome, "tipo": p.tipo_parte, "polo": p.polo}
+                for p in proc.partes
+            ],
             "movimentacoes": [
                 {"data": str(m.data_movimentacao), "descricao": m.descricao}
                 for m in proc.movimentacoes[:20]
@@ -316,13 +414,13 @@ async def buscar_por_cnj(
         }
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error("Erro na busca por CNJ %s: %s", numero_cnj, e)
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception:
+        logger.exception("busca.cnj.failure", numero_cnj=numero_cnj)
+        raise HTTPException(status_code=500, detail="Erro interno ao buscar por CNJ")
 
 
 # ============================================================================
-# MIGRATIONS
+# MIGRATIONS (requer admin)
 # ============================================================================
 
 class MigrationResponse(BaseModel):
@@ -330,53 +428,57 @@ class MigrationResponse(BaseModel):
     migrations_run: list[str]
     errors: list[str]
 
+
 @app.post("/api/migrations/run", tags=["system"], response_model=MigrationResponse)
-async def run_migrations():
+async def run_migrations(_: dict = Depends(require_admin)):
     """
     Executa todas as migrations do banco de dados.
-    Use para inicializar o banco ou aplicar updates.
+    Requer usuário autenticado com role=admin.
     """
     import os
     from pathlib import Path
-    
+
+    import sqlparse
+    from sqlalchemy import text
+
     migrations_dir = Path(__file__).parent / "src" / "database" / "migrations"
-    migration_files = sorted([f for f in os.listdir(migrations_dir) if f.endswith('.sql')])
-    
-    migrations_run = []
-    errors = []
-    
+    migration_files = sorted(
+        f for f in os.listdir(migrations_dir) if f.endswith(".sql")
+    )
+
+    migrations_run: list[str] = []
+    errors: list[str] = []
+
     async with AsyncSessionLocal() as session:
         for filename in migration_files:
             try:
                 filepath = migrations_dir / filename
-                sql_content = filepath.read_text()
-                
-                # Filtra comentários e statements vazios
-                statements = []
-                for line in sql_content.split(';'):
-                    line = line.strip()
-                    # Pula linhas vazias ou que são só comentário
-                    if line and not line.startswith('--'):
-                        statements.append(line)
-                
-                # Executa cada statement
+                sql_content = filepath.read_text(encoding="utf-8")
+
+                # sqlparse entende triggers, DO blocks, funções e strings com `;`
+                statements = [
+                    stmt.strip()
+                    for stmt in sqlparse.split(sql_content)
+                    if stmt.strip()
+                ]
+
                 for statement in statements:
-                    from sqlalchemy import text
                     await session.execute(text(statement))
-                
+
                 await session.commit()
                 migrations_run.append(filename)
-                logger.info(f"Migration {filename} executada com sucesso")
-            except Exception as e:
+                logger.info("migrations.apply.success", file=filename)
+            except Exception:
                 await session.rollback()
-                errors.append(f"{filename}: {str(e)}")
-                logger.error(f"Erro na migration {filename}: {e}")
-    
+                errors.append(filename)
+                logger.exception("migrations.apply.failure", file=filename)
+
     return MigrationResponse(
         status="ok" if not errors else "completed_with_errors",
         migrations_run=migrations_run,
-        errors=errors
+        errors=errors,
     )
+
 
 # ============================================================================
 # DASHBOARD
@@ -445,6 +547,8 @@ async def dashboard():
                 <div class="endpoint">GET /api/processos/{id}</div>
                 <div class="endpoint">GET /api/notificacoes</div>
                 <div class="endpoint">GET /api/prazos</div>
+                <div class="endpoint">POST /api/buscar/oab</div>
+                <div class="endpoint">GET /api/buscar/cnj/{numero_cnj}</div>
             </div>
 
             <div class="card">
